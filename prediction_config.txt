@@ -1,0 +1,42 @@
+# 综合预测系统配置
+
+## 推荐配置
+
+### 高精度模式
+top_k = 5
+models = ['gradient_boosting']
+methods_weights = {
+    'model': 0.40,
+    'animal': 0.15,
+    'element': 0.20,
+    'frequency': 0.10,
+    'trend': 0.10,
+    'gap': 0.05
+}
+expected_hit_rate = 0.20
+
+### 高覆盖模式  
+top_k = 10
+models = ['gradient_boosting', 'lightgbm', 'xgboost']
+methods_weights = {
+    'model': 0.35,
+    'animal': 0.15,
+    'element': 0.25,
+    'frequency': 0.10,
+    'trend': 0.10,
+    'gap': 0.05
+}
+expected_hit_rate = 0.35
+
+### 超高覆盖模式
+top_k = 15
+models = ['gradient_boosting', 'lightgbm', 'xgboost', 'random_forest']
+methods_weights = {
+    'model': 0.30,
+    'animal': 0.15,
+    'element': 0.25,
+    'frequency': 0.15,
+    'trend': 0.10,
+    'gap': 0.05
+}
+expected_hit_rate = 0.45
