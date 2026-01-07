@@ -273,7 +273,7 @@ class LuckyNumberGUI:
             text="← 综合5种统计方法（60%成功率）",
             font=('', 9)
         ).grid(row=3, column=1, sticky=tk.W, padx=5)
-        
+        """   
         # 奇偶预测按钮（新增）
         self.odd_even_button = ttk.Button(
             pred_frame, text="🎲 奇偶性预测", command=self.odd_even_predict, 
@@ -332,7 +332,7 @@ class LuckyNumberGUI:
         ).grid(row=7, column=1, sticky=tk.W, padx=5)
         
         # 增强版生肖预测（新增 - 60%成功率）
-        self.zodiac_enhanced_button = ttk.Button(
+       self.zodiac_enhanced_button = ttk.Button(
             pred_frame, text="🎯 生肖Top5增强版 (60%)", command=self.predict_zodiac_enhanced,
             state='normal', width=25
         )
@@ -344,7 +344,7 @@ class LuckyNumberGUI:
             font=('', 9, 'bold'),
             foreground="red"
         ).grid(row=8, column=1, sticky=tk.W, padx=5)
-        
+        """
         # 生肖预测版本选择区域
         zodiac_separator = ttk.Separator(pred_frame, orient='horizontal')
         zodiac_separator.grid(row=9, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
@@ -427,9 +427,23 @@ class LuckyNumberGUI:
             foreground="darkred"
         ).grid(row=16, column=1, sticky=tk.W, padx=5)
         
+        # 生肖投注策略按钮（新增）
+        self.zodiac_betting_button = ttk.Button(
+            pred_frame, text="🐉 生肖投注策略", command=self.analyze_zodiac_betting,
+            state='normal', width=25
+        )
+        self.zodiac_betting_button.grid(row=17, column=0, padx=10, pady=5)
+        
+        ttk.Label(
+            pred_frame,
+            text="← 生肖TOP5投注：每期20元，命中奖45元，多种倍投策略 🔥",
+            font=('', 9, 'bold'),
+            foreground="purple"
+        ).grid(row=17, column=1, sticky=tk.W, padx=5)
+        
         # 预测结果显示区域
         result_frame = ttk.Frame(pred_frame)
-        result_frame.grid(row=17, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
+        result_frame.grid(row=18, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
         result_frame.columnconfigure(0, weight=1)
         
         self.result_text = scrolledtext.ScrolledText(
@@ -1416,9 +1430,9 @@ class LuckyNumberGUI:
                 if nums:
                     self.log_output(f"  {element}: {nums}\n")
             
-            # 添加最近50期验证
+            # 添加最近200期验证
             self.log_output(f"\n{'='*70}\n")
-            self.log_output("【最近100期预测验证】\n")
+            self.log_output("【最近200期预测验证】\n")
             self.log_output(f"{'='*70}\n")
             
             try:
@@ -1428,8 +1442,8 @@ class LuckyNumberGUI:
                     self.log_output(f"\n{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP15':<40} {'结果':<6}\n")
                     self.log_output("-" * 70 + "\n")
                     
-                    for i in range(100):
-                        idx = len(df) - 100 + i
+                    for i in range(200):
+                        idx = len(df) - 200 + i
                         if idx <= 0:
                             continue
                         
@@ -1459,9 +1473,9 @@ class LuckyNumberGUI:
                     self.log_output("-" * 70 + "\n")
                     self.log_output(f"\n验证统计: {top15_hits}/{total} = {accuracy:.1f}%\n")
                 else:
-                    self.log_output("\n数据不足100期，无法验证\n")
+                    self.log_output("\n数据不足200期，无法验证\n")
             except Exception as e:
-                self.log_output(f"\n100期验证出错: {str(e)}\n")
+                self.log_output(f"\n200期验证出错: {str(e)}\n")
             
             self.log_output(f"\n基于历史数据: {len(numbers)} 期\n")
             self.log_output(f"{'='*70}\n")
@@ -2459,9 +2473,9 @@ class LuckyNumberGUI:
             self.log_output(f"选择模型: {result['selected_model']}\n")
             self.log_output(f"预测TOP5: {', '.join(result['top5'])}\n")
             
-            # 添加最近20期验证
+            # 添加最近100期验证
             self.log_output(f"\n{'='*70}\n")
-            self.log_output("【最近20期预测验证】\n")
+            self.log_output("【最近100期预测验证】\n")
             self.log_output(f"{'='*70}\n")
             
             if len(df) >= 21:
@@ -2470,8 +2484,8 @@ class LuckyNumberGUI:
                 self.log_output(f"\n{'期数':<6} {'日期':<12} {'实际':<8} {'预测TOP5':<30} {'结果':<6}\n")
                 self.log_output("-" * 70 + "\n")
                 
-                for i in range(20):
-                    idx = len(df) - 20 + i
+                for i in range(100):
+                    idx = len(df) - 100 + i
                     if idx <= 0:
                         continue
                     
@@ -2499,7 +2513,7 @@ class LuckyNumberGUI:
                 self.log_output("-" * 70 + "\n")
                 self.log_output(f"\n验证统计: {hits}/{total} = {accuracy:.1f}%\n")
             else:
-                self.log_output("\n数据不足20期，无法验证\n")
+                self.log_output("\n数据不足100期，无法验证\n")
             
             self.log_output(f"\n✅ v10.0预测完成\n")
             self.log_output(f"{'='*70}\n")
@@ -2567,9 +2581,9 @@ class LuckyNumberGUI:
             
             self.log_output(f"预测TOP5: {', '.join(top5_list)}\n")
             
-            # 添加最近20期验证
+            # 添加最近200期验证
             self.log_output(f"\n{'='*70}\n")
-            self.log_output("【最近20期预测验证】\n")
+            self.log_output("【最近200期预测验证】\n")
             self.log_output(f"{'='*70}\n")
             
             if len(df) >= 21:
@@ -2578,8 +2592,8 @@ class LuckyNumberGUI:
                 self.log_output(f"\n{'期数':<6} {'日期':<12} {'实际':<8} {'预测TOP5':<30} {'结果':<6}\n")
                 self.log_output("-" * 70 + "\n")
                 
-                for i in range(20):
-                    idx = len(df) - 20 + i
+                for i in range(200):
+                    idx = len(df) - 200 + i
                     if idx <= 0:
                         continue
                     
@@ -2611,7 +2625,7 @@ class LuckyNumberGUI:
                 self.log_output("-" * 70 + "\n")
                 self.log_output(f"\n验证统计: {hits}/{total} = {accuracy:.1f}%\n")
             else:
-                self.log_output("\n数据不足20期，无法验证\n")
+                self.log_output("\n数据不足200期，无法验证\n")
             
             self.log_output(f"\n✅ v5.0预测完成\n")
             self.log_output(f"{'='*70}\n")
@@ -2712,9 +2726,9 @@ class LuckyNumberGUI:
                     self.log_output(f"  {zodiac}: 前30期{detail['prev_count']}次 → 最近10期{detail['recent_count']}次 (强度+{detail['strength']})\n")
             self.log_output(f"预测TOP5: {', '.join(top5)}\n")
             
-            # 添加最近20期验证
+            # 添加最近200期验证
             self.log_output(f"\n{'='*70}\n")
-            self.log_output("【最近20期预测验证】\n")
+            self.log_output("【最近200期预测验证】\n")
             self.log_output(f"{'='*70}\n")
             
             if len(df) >= 21:
@@ -2723,8 +2737,8 @@ class LuckyNumberGUI:
                 self.log_output(f"\n{'期数':<6} {'日期':<12} {'实际':<8} {'预测TOP5':<30} {'场景':<15} {'结果':<6}\n")
                 self.log_output("-" * 80 + "\n")
                 
-                for i in range(20):
-                    idx = len(df) - 20 + i
+                for i in range(200):
+                    idx = len(df) - 200 + i
                     if idx <= 0:
                         continue
                     
@@ -2765,7 +2779,7 @@ class LuckyNumberGUI:
                 self.log_output("-" * 80 + "\n")
                 self.log_output(f"\n验证统计: {hits}/{total} = {accuracy:.1f}%\n")
             else:
-                self.log_output("\n数据不足20期，无法验证\n")
+                self.log_output("\n数据不足200期，无法验证\n")
             
             self.log_output(f"\n✅ v12.0预测完成\n")
             self.log_output(f"{'='*70}\n")
@@ -2798,9 +2812,9 @@ class LuckyNumberGUI:
                 return
             
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
-            self.log_output(f"分析期数: 最近100期\n\n")
+            self.log_output(f"分析期数: 最近200期\n\n")
             
-            # 使用最近100期数据进行回测
+            # 100
             test_periods = min(100, len(df))
             start_idx = len(df) - test_periods
             
@@ -2904,12 +2918,12 @@ class LuckyNumberGUI:
             self.log_output(f"  最大回撤: {best_result['max_drawdown']:.2f}元\n")
             self.log_output(f"  最终余额: {best_result['final_balance']:+.2f}元\n\n")
             
-            # 显示最近30期详情
-            self.log_output(f"【最近30期详情】\n")
+            # 显示最近100期详情
+            self.log_output(f"【最近100期详情】\n")
             self.log_output(f"{'期号':<6} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
             self.log_output("-" * 70 + "\n")
             
-            for period in best_result['history'][-30:]:
+            for period in best_result['history'][-100:]:
                 self.log_output(
                     f"{period['period']:<6} "
                     f"{period['multiplier']:<6} "
@@ -3166,6 +3180,813 @@ class LuckyNumberGUI:
             messagebox.showerror("错误", error_msg)
             import traceback
             self.log_output(traceback.format_exc())
+    
+    def analyze_zodiac_betting(self):
+        """生肖投注策略分析 - TOP5生肖投注"""
+        try:
+            from datetime import datetime
+            
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🐉 生肖投注策略分析 - TOP5生肖投注系统\n")
+            self.log_output(f"{'='*80}\n")
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+            
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期，无法进行可靠的投注策略分析")
+                return
+            
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
+            self.log_output(f"最新期数: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号 ({df.iloc[-1]['animal']})\n\n")
+            
+            # 分析最近100期
+            test_periods = min(300, len(df))
+            start_idx = len(df) - test_periods
+            
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"投注规则说明\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"• 每期投入: 20元 (每个生肖4元 × 5个生肖)\n")
+            self.log_output(f"• 命中奖励: 45元\n")
+            self.log_output(f"• 净利润: 45 - 20 = 25元\n")
+            self.log_output(f"• 未命中亏损: -20元\n")
+            self.log_output(f"• 使用模型: v10.0 简化智能选择器 (52%成功率)\n\n")
+            
+            self.log_output(f"{'='*80}\n")
+            self.log_output("第一步：生成历史TOP5生肖预测\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 回测数据
+            predictions_top5 = []
+            actuals = []
+            hit_records = []
+            
+            self.log_output("开始生成每期的TOP5生肖预测...\n")
+            
+            for i in range(start_idx, len(df)):
+                # 使用i之前的数据进行预测
+                train_animals = df['animal'].iloc[:i].tolist()
+                
+                # 使用v10.0进行预测
+                result = self.zodiac_v10.predict_from_history(train_animals, top_n=5, debug=False)
+                top5 = result['top5']
+                
+                predictions_top5.append(top5)
+                
+                # 实际结果
+                actual = df.iloc[i]['animal']
+                actuals.append(actual)
+                
+                # 判断命中
+                hit = actual in top5
+                hit_records.append(hit)
+                
+                if (i - start_idx + 1) % 20 == 0:
+                    self.log_output(f"  已处理 {i - start_idx + 1}/{test_periods} 期...\n")
+            
+            self.log_output(f"\n✅ 预测生成完成！共 {len(predictions_top5)} 期\n\n")
+            
+            # 计算基础命中率
+            hits = sum(hit_records)
+            hit_rate = hits / len(hit_records)
+            
+            self.log_output(f"{'='*80}\n")
+            self.log_output("第二步：基础投注策略分析（每期20元固定投注）\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 基础策略：固定投注
+            base_profit = 0
+            for hit in hit_records:
+                if hit:
+                    base_profit += 25  # 净利润
+                else:
+                    base_profit -= 20  # 亏损
+            
+            base_roi = (base_profit / (20 * len(hit_records))) * 100
+            
+            self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
+            self.log_output(f"总投入: {20 * len(hit_records)}元\n")
+            self.log_output(f"总收益: {base_profit:+.2f}元\n")
+            self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
+            
+            # 新增：分析预测位置分布
+            self.log_output(f"{'='*80}\n")
+            self.log_output("第三步：预测命中位置分析（优化投注分配）\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 统计命中在TOP5中的位置分布
+            position_hits = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+            for i, hit in enumerate(hit_records):
+                if hit:
+                    actual_animal = actuals[i]
+                    predicted_top5 = predictions_top5[i]
+                    if actual_animal in predicted_top5:
+                        position = predicted_top5.index(actual_animal) + 1
+                        position_hits[position] += 1
+            
+            self.log_output("命中位置分布：\n")
+            for pos, count in position_hits.items():
+                rate = (count / hits * 100) if hits > 0 else 0
+                self.log_output(f"  TOP{pos}: {count}次 ({rate:.1f}%)\n")
+            
+            # 计算TOP3命中率
+            top3_hits = sum(1 for i, hit in enumerate(hit_records) if hit and actuals[i] in predictions_top5[i][:3])
+            top3_rate = top3_hits / len(hit_records)
+            top2_hits = sum(1 for i, hit in enumerate(hit_records) if hit and actuals[i] in predictions_top5[i][:2])
+            top2_rate = top2_hits / len(hit_records)
+            
+            self.log_output(f"\nTOP3命中率: {top3_hits}/{len(hit_records)} = {top3_rate*100:.2f}%\n")
+            self.log_output(f"TOP2命中率: {top2_hits}/{len(hit_records)} = {top2_rate*100:.2f}%\n\n")
+            
+            # 倍投策略分析（包含新策略）
+            self.log_output(f"{'='*80}\n")
+            self.log_output("第四步：多种投注策略对比分析（含创新策略）\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            strategies = {
+                'base': {'name': '固定投注TOP5', 'multiplier_func': lambda x: 1, 'type': 'multiplier'},
+                'martingale': {'name': '马丁格尔倍投', 'multiplier_func': lambda x: 2**x if x <= 5 else 32, 'type': 'multiplier'},
+                'fibonacci': {'name': '斐波那契倍投', 'multiplier_func': self._fibonacci_multiplier, 'type': 'multiplier'},
+                'dalembert': {'name': '达朗贝尔倍投', 'multiplier_func': lambda x: 1 + x if x <= 10 else 11, 'type': 'multiplier'},
+                'conservative': {'name': '保守倍投', 'multiplier_func': lambda x: 1 + x*0.5 if x <= 6 else 4, 'type': 'multiplier'},
+                'top3_only': {'name': 'TOP3精准投注', 'type': 'top3'},
+                'top2_focus': {'name': 'TOP2集中投注', 'type': 'top2'},
+                'weighted': {'name': '加权分配投注', 'type': 'weighted'},
+                'kelly': {'name': '凯利公式优化', 'type': 'kelly'},
+                'stop_loss': {'name': '止损止盈策略', 'type': 'stop_loss'},
+                'adaptive': {'name': '自适应智能投注', 'type': 'adaptive'},
+            }
+            
+            strategy_results = {}
+            
+            for strategy_type, strategy_info in strategies.items():
+                try:
+                    if strategy_info.get('type') == 'multiplier':
+                        # 传统倍投策略（买TOP5）
+                        result = self._calculate_zodiac_betting_result(
+                            hit_records, 
+                            strategy_info['multiplier_func'],
+                            base_bet=20,
+                            win_amount=45
+                        )
+                    elif strategy_info.get('type') == 'top3':
+                        # TOP3精准投注（只买前3个生肖）
+                        result = self._calculate_top3_betting(hit_records, predictions_top5, actuals)
+                    elif strategy_info.get('type') == 'top2':
+                        # TOP2集中投注（只买前2个生肖）
+                        result = self._calculate_top2_betting(hit_records, predictions_top5, actuals)
+                    elif strategy_info.get('type') == 'weighted':
+                        # 加权分配投注（根据位置分配不同金额）
+                        result = self._calculate_weighted_betting(hit_records, predictions_top5, actuals)
+                    elif strategy_info.get('type') == 'kelly':
+                        # 凯利公式优化投注
+                        result = self._calculate_kelly_betting(hit_records, hit_rate)
+                    elif strategy_info.get('type') == 'stop_loss':
+                        # 止损止盈策略
+                        result = self._calculate_stop_loss_betting(hit_records)
+                    elif strategy_info.get('type') == 'adaptive':
+                        # 自适应智能投注
+                        result = self._calculate_adaptive_betting(hit_records, predictions_top5, actuals)
+                    else:
+                        continue
+                except Exception as e:
+                    self.log_output(f"  ⚠️ {strategy_info['name']}计算失败: {str(e)}\n")
+                    continue
+                
+                strategy_results[strategy_type] = {
+                    'name': strategy_info['name'],
+                    'result': result
+                }
+                
+                self.log_output(f"【{strategy_info['name']}】\n")
+                self.log_output(f"  总收益: {result['total_profit']:+.2f}元\n")
+                self.log_output(f"  ROI: {result['roi']:+.2f}%\n")
+                self.log_output(f"  命中率: {result.get('hit_rate', hit_rate)*100:.2f}%\n")
+                self.log_output(f"  最大连亏: {result['max_consecutive_losses']}期\n")
+                self.log_output(f"  最大单期投入: {result['max_bet']:.2f}元\n")
+                self.log_output(f"  最大回撤: {result['max_drawdown']:.2f}元\n")
+                if 'description' in result:
+                    self.log_output(f"  策略说明: {result['description']}\n")
+                self.log_output("\n")
+            
+            # 找出最佳策略
+            best_strategy = max(strategy_results.items(), key=lambda x: x[1]['result']['roi'])
+            best_name = best_strategy[1]['name']
+            best_result = best_strategy[1]['result']
+            
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"🏆 最优策略: {best_name}\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"总收益: {best_result['total_profit']:+.2f}元\n")
+            self.log_output(f"ROI: {best_result['roi']:+.2f}%\n")
+            self.log_output(f"最大连亏: {best_result['max_consecutive_losses']}期\n")
+            self.log_output(f"胜率: {hit_rate*100:.2f}%\n\n")
+            
+            # 详细倍投收益记录（使用最佳策略）
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"第五步：最近100期倍投收益详情（{best_name}）\n")
+            self.log_output(f"{'='*80}\n\n")
+            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10}\n")
+            self.log_output("-" * 110 + "\n")
+            
+            # 使用最佳策略重新计算每期详情
+            # 检查最佳策略类型
+            best_strategy_type = best_strategy[0]
+            if strategies[best_strategy_type].get('type') == 'multiplier':
+                best_multiplier_func = strategies[best_strategy_type].get('multiplier_func')
+                use_multiplier = True
+            else:
+                use_multiplier = False
+                best_multiplier_func = None
+            
+            cumulative_profit = 0
+            consecutive_losses_detail = 0
+            
+            for i in range(len(hit_records)):
+                idx = start_idx + i
+                actual_row = df.iloc[idx]
+                date_str = actual_row['date']
+                actual_animal = actual_row['animal']
+                predicted_top5 = predictions_top5[i]
+                hit = hit_records[i]
+                
+                # 计算当期倍数和投注金额
+                if use_multiplier and best_multiplier_func:
+                    multiplier = best_multiplier_func(consecutive_losses_detail)
+                    current_bet = 20 * multiplier
+                else:
+                    # 对于非倍投策略，使用固定值显示
+                    multiplier = 1.0
+                    current_bet = 20
+                
+                # 计算当期收益
+                if hit:
+                    if use_multiplier:
+                        period_profit = 45 * multiplier - current_bet
+                    else:
+                        period_profit = 45 - current_bet
+                    cumulative_profit += period_profit
+                    consecutive_losses_detail = 0
+                    status = "✓中"
+                    profit_str = f"+{period_profit:.2f}"
+                else:
+                    period_profit = -current_bet
+                    cumulative_profit += period_profit
+                    consecutive_losses_detail += 1
+                    status = "✗失"
+                    profit_str = f"{period_profit:.2f}"
+                
+                top5_str = ','.join(predicted_top5[:5])  # 只显示前5个生肖节省空间
+                
+                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {multiplier:<6.1f} {current_bet:<8.0f} {status:<6} {profit_str:<10} {cumulative_profit:>+10.2f}\n")
+            
+            self.log_output("-" * 110 + "\n")
+            self.log_output(f"\n统计: 命中{hits}/{len(hit_records)}期 = {hit_rate*100:.2f}%\n")
+            self.log_output(f"最终累计收益: {cumulative_profit:+.2f}元\n")
+            self.log_output(f"总投入: {best_result['total_investment']:.2f}元\n")
+            self.log_output(f"ROI: {best_result['roi']:+.2f}%\n\n")
+            
+            # 预测下一期
+            self.log_output(f"{'='*80}\n")
+            self.log_output("第六步：下期投注建议\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 获取下期预测
+            all_animals = df['animal'].tolist()
+            next_result = self.zodiac_v10.predict_from_history(all_animals, top_n=5, debug=False)
+            next_top5 = next_result['top5']
+            
+            # 计算最近连续亏损
+            consecutive_losses = 0
+            for i in range(len(hit_records)-1, -1, -1):
+                if not hit_records[i]:
+                    consecutive_losses += 1
+                else:
+                    break
+            
+            # 根据最佳策略给出建议倍数
+            best_strategy_type = best_strategy[0]
+            if strategies[best_strategy_type].get('type') == 'multiplier':
+                best_multiplier_func = strategies[best_strategy_type].get('multiplier_func')
+                if best_multiplier_func:
+                    recommended_multiplier = best_multiplier_func(consecutive_losses)
+                else:
+                    recommended_multiplier = 1
+            else:
+                recommended_multiplier = 1
+            
+            recommended_bet = 20 * recommended_multiplier
+            
+            self.log_output(f"下期预测TOP5: {', '.join(next_top5)}\n")
+            self.log_output(f"选择模型: {next_result['selected_model']}\n")
+            self.log_output(f"最近连续亏损: {consecutive_losses}期\n")
+            self.log_output(f"推荐策略: {best_name}\n")
+            
+            # 根据策略类型显示不同的建议
+            if strategies[best_strategy_type].get('type') == 'multiplier':
+                self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
+                self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/5:.2f}元)\n")
+                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
+            elif strategies[best_strategy_type].get('type') == 'top3':
+                self.log_output(f"建议投注: 12元 (TOP3，每个生肖4元)\n")
+                self.log_output(f"如果命中: +33元\n")
+            elif strategies[best_strategy_type].get('type') == 'top2':
+                self.log_output(f"建议投注: 8元 (TOP2，每个生肖4元)\n")
+                self.log_output(f"如果命中: +37元\n")
+            else:
+                self.log_output(f"建议投注: 20元 (根据策略动态调整)\n")
+                self.log_output(f"如果命中: +25元\n")
+            
+            self.log_output(f"如果未中: -{recommended_bet:.2f}元\n\n")
+            
+            # 在结果文本框显示汇总
+            result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
+            result_display += "│                   🐉 生肖投注策略分析报告 🐉                         │\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += f"│  分析期数: {test_periods}期 (v10.0简化智能选择器)                               │\n"
+            result_display += f"│  实际命中率: {hit_rate*100:.2f}% ({hits}/{len(hit_records)})                                  │\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += "│  📊 策略对比（按ROI排序）                                              │\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            
+            sorted_strategies = sorted(strategy_results.items(), key=lambda x: x[1]['result']['roi'], reverse=True)
+            for i, (stype, sdata) in enumerate(sorted_strategies):
+                marker = "🏆" if i == 0 else f"{i+1}."
+                r = sdata['result']
+                result_display += f"│  {marker} {sdata['name']:<12} ROI:{r['roi']:>+7.2f}% 收益:{r['total_profit']:>+8.2f}元 最大投{r['max_bet']:>6.0f}元│\n"
+            
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += f"│  🏆 最优策略: {best_name:<56}│\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += f"│  总投入: {best_result['total_investment']:.2f}元                                                │\n"
+            result_display += f"│  总收益: {best_result['total_profit']:>+9.2f}元                                             │\n"
+            result_display += f"│  投资回报率: {best_result['roi']:>+6.2f}%                                                │\n"
+            result_display += f"│  最大连亏: {best_result['max_consecutive_losses']}期                                                │\n"
+            result_display += f"│  最大单期投入: {best_result['max_bet']:.2f}元                                           │\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += "│  🎯 下期投注建议                                                        │\n"
+            result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
+            result_display += f"│  预测TOP5: {', '.join(next_top5):<56}│\n"
+            result_display += f"│  选择模型: {next_result['selected_model']:<56}│\n"
+            result_display += f"│  最近连亏: {consecutive_losses}期                                                        │\n"
+            result_display += f"│  推荐策略: {best_name:<56}│\n"
+            
+            # 根据策略类型显示不同信息
+            if strategies[best_strategy_type].get('type') == 'multiplier':
+                result_display += f"│  建议倍数: {recommended_multiplier}倍                                                        │\n"
+                result_display += f"│  建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/5:.2f}元)                        │\n"
+                result_display += f"│  如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元 ✓                                       │\n"
+            elif strategies[best_strategy_type].get('type') == 'top3':
+                result_display += f"│  建议投注: 12元 (TOP3精准，每个生肖4元)                              │\n"
+                result_display += f"│  如果命中: +33元 ✓                                                    │\n"
+            elif strategies[best_strategy_type].get('type') == 'top2':
+                result_display += f"│  建议投注: 8元 (TOP2集中，每个生肖4元)                               │\n"
+                result_display += f"│  如果命中: +37元 ✓                                                    │\n"
+            else:
+                result_display += f"│  建议投注: 20元 (动态调整)                                            │\n"
+                result_display += f"│  如果命中: +25元 ✓                                                    │\n"
+            
+            result_display += f"│  如果未中: -{recommended_bet:.2f}元 ✗                                              │\n"
+            result_display += "└────────────────────────────────────────────────────────────────────────┘\n"
+            
+            self.result_text.delete('1.0', tk.END)
+            self.result_text.insert('1.0', result_display)
+            
+            self.log_output(f"{'='*80}\n")
+            self.log_output("✅ 生肖投注策略分析完成！\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+        except Exception as e:
+            error_msg = f"生肖投注策略分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+    
+    def _fibonacci_multiplier(self, consecutive_losses):
+        """斐波那契数列倍数"""
+        fib = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+        if consecutive_losses < len(fib):
+            return fib[consecutive_losses]
+        return fib[-1]
+    
+    def _calculate_zodiac_betting_result(self, hit_records, multiplier_func, base_bet=20, win_amount=45):
+        """计算生肖投注策略结果
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            multiplier_func: 倍数计算函数，输入连续亏损次数，返回倍数
+            base_bet: 基础投注金额（默认20元）
+            win_amount: 命中奖励金额（默认45元）
+        
+        Returns:
+            包含各种统计指标的字典
+        """
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        max_bet = base_bet
+        balance_history = [0]
+        max_drawdown = 0
+        peak_balance = 0
+        
+        for hit in hit_records:
+            # 计算当前倍数
+            multiplier = multiplier_func(consecutive_losses)
+            current_bet = base_bet * multiplier
+            total_investment += current_bet
+            
+            if hit:
+                # 命中：获得奖励
+                profit = win_amount * multiplier - current_bet
+                total_profit += profit
+                consecutive_losses = 0
+            else:
+                # 未中：亏损
+                total_profit -= current_bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            # 更新最大单期投入
+            max_bet = max(max_bet, current_bet)
+            
+            # 记录余额历史
+            balance_history.append(total_profit)
+            
+            # 计算最大回撤
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = sum(hit_records) / len(hit_records) if len(hit_records) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history
+        }
+    
+    def _calculate_top3_betting(self, hit_records, predictions_top5, actuals):
+        """TOP3精准投注策略 - 只买前3个生肖"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 12  # 每个生肖4元 × 3
+        peak_balance = 0
+        max_drawdown = 0
+        
+        actual_hits = 0
+        for i, actual in enumerate(actuals):
+            top3 = predictions_top5[i][:3]
+            hit = actual in top3
+            
+            bet = 12  # 固定12元
+            total_investment += bet
+            
+            if hit:
+                profit = 45 - bet  # 奖励45元，扣除成本
+                total_profit += profit
+                consecutive_losses = 0
+                actual_hits += 1
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = actual_hits / len(actuals) if len(actuals) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': '只买前3个生肖，降低成本，提高精准度'
+        }
+    
+    def _calculate_top2_betting(self, hit_records, predictions_top5, actuals):
+        """TOP2集中投注策略 - 只买前2个生肖"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 8  # 每个生肖4元 × 2
+        peak_balance = 0
+        max_drawdown = 0
+        
+        actual_hits = 0
+        for i, actual in enumerate(actuals):
+            top2 = predictions_top5[i][:2]
+            hit = actual in top2
+            
+            bet = 8  # 固定8元
+            total_investment += bet
+            
+            if hit:
+                profit = 45 - bet
+                total_profit += profit
+                consecutive_losses = 0
+                actual_hits += 1
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = actual_hits / len(actuals) if len(actuals) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': '只买前2个生肖，极致精准，风险最低'
+        }
+    
+    def _calculate_weighted_betting(self, hit_records, predictions_top5, actuals):
+        """加权分配投注策略 - 根据排名分配不同金额"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 20
+        peak_balance = 0
+        max_drawdown = 0
+        
+        # 加权分配：TOP1(8元), TOP2(6元), TOP3(4元), TOP4(2元)，总计20元
+        weights = [8, 6, 4, 2]
+        
+        actual_hits = 0
+        for i, actual in enumerate(actuals):
+            top4 = predictions_top5[i][:4]
+            hit = actual in top4
+            
+            bet = 20
+            total_investment += bet
+            
+            if hit:
+                # 根据命中位置获得不同收益
+                position = top4.index(actual)
+                # 命中任何一个都得45元奖励
+                profit = 45 - bet
+                total_profit += profit
+                consecutive_losses = 0
+                actual_hits += 1
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = actual_hits / len(actuals) if len(actuals) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': 'TOP4加权分配：8+6+4+2元，重点关注前两名'
+        }
+    
+    def _calculate_kelly_betting(self, hit_records, overall_hit_rate):
+        """凯利公式优化投注策略"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 20
+        peak_balance = 0
+        max_drawdown = 0
+        
+        # 凯利公式：f = (bp - q) / b
+        # b = 赔率 = 45/20 - 1 = 1.25
+        # p = 胜率
+        # q = 败率 = 1 - p
+        b = (45 / 20) - 1  # 净赔率
+        p = overall_hit_rate
+        q = 1 - p
+        kelly_fraction = (b * p - q) / b if b > 0 else 0
+        kelly_fraction = max(0, min(kelly_fraction, 0.25))  # 限制在0-25%
+        
+        base_bankroll = 1000  # 假设初始本金1000元
+        
+        for i, hit in enumerate(hit_records):
+            # 根据凯利公式动态调整投注
+            current_bankroll = base_bankroll + total_profit
+            optimal_bet = current_bankroll * kelly_fraction
+            bet = max(20, min(optimal_bet, 100))  # 限制在20-100元之间
+            
+            total_investment += bet
+            max_bet = max(max_bet, bet)
+            
+            if hit:
+                profit = 45 * (bet / 20) - bet
+                total_profit += profit
+                consecutive_losses = 0
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = sum(hit_records) / len(hit_records) if len(hit_records) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': f'凯利公式动态调整，最优比例{kelly_fraction*100:.1f}%'
+        }
+    
+    def _calculate_stop_loss_betting(self, hit_records):
+        """止损止盈策略 - 达到目标或亏损时停止"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 20
+        peak_balance = 0
+        max_drawdown = 0
+        
+        stop_loss_threshold = -100  # 止损线：亏损100元
+        take_profit_threshold = 200  # 止盈线：盈利200元
+        
+        active = True
+        periods_paused = 0
+        
+        for i, hit in enumerate(hit_records):
+            if not active:
+                # 暂停投注期
+                periods_paused += 1
+                if periods_paused >= 5:  # 暂停5期后重新开始
+                    active = True
+                    periods_paused = 0
+                    total_profit = 0  # 重置收益
+                continue
+            
+            bet = 20
+            total_investment += bet
+            
+            if hit:
+                profit = 25
+                total_profit += profit
+                consecutive_losses = 0
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            # 检查止损止盈
+            if total_profit <= stop_loss_threshold or total_profit >= take_profit_threshold:
+                active = False
+                periods_paused = 0
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = sum(hit_records) / len(hit_records) if len(hit_records) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': '止损-100元/止盈+200元，暂停5期后重启'
+        }
+    
+    def _calculate_adaptive_betting(self, hit_records, predictions_top5, actuals):
+        """自适应智能投注策略 - 根据近期表现动态调整"""
+        total_profit = 0
+        total_investment = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        balance_history = [0]
+        max_bet = 20
+        peak_balance = 0
+        max_drawdown = 0
+        
+        window_size = 10  # 观察窗口
+        recent_hits = []
+        
+        for i, actual in enumerate(actuals):
+            # 计算近期命中率
+            if len(recent_hits) >= window_size:
+                recent_hit_rate = sum(recent_hits[-window_size:]) / window_size
+            else:
+                recent_hit_rate = 0.5
+            
+            # 根据近期表现动态选择投注范围
+            if recent_hit_rate >= 0.6:
+                # 表现好，买TOP5
+                bet_range = 5
+                bet = 20
+            elif recent_hit_rate >= 0.4:
+                # 表现一般，买TOP3
+                bet_range = 3
+                bet = 12
+            else:
+                # 表现差，只买TOP2
+                bet_range = 2
+                bet = 8
+            
+            selected = predictions_top5[i][:bet_range]
+            hit = actual in selected
+            recent_hits.append(hit)
+            
+            total_investment += bet
+            max_bet = max(max_bet, bet)
+            
+            if hit:
+                profit = 45 - bet
+                total_profit += profit
+                consecutive_losses = 0
+            else:
+                total_profit -= bet
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            
+            balance_history.append(total_profit)
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        actual_hits = sum(recent_hits)
+        hit_rate = actual_hits / len(actuals) if len(actuals) > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'description': '根据近10期表现动态调整TOP2/3/5'
+        }
     
     def log_output(self, message):
         """输出日志信息"""
