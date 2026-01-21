@@ -220,7 +220,7 @@ class LuckyNumberGUI:
         pred_frame = ttk.LabelFrame(parent, text="幸运数字预测 - 混合策略模型", padding="10")
         pred_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
         pred_frame.columnconfigure(1, weight=1)
-        
+        '''
         # 说明文字
         info_label = ttk.Label(
             pred_frame, 
@@ -259,7 +259,7 @@ class LuckyNumberGUI:
             font=('', 9),
             foreground="purple"
         ).grid(row=2, column=1, sticky=tk.W, padx=5)
-        
+        '''
         # 综合预测按钮
         self.comprehensive_button = ttk.Button(
             pred_frame, text="⭐ 综合预测 Top 15", command=self.comprehensive_predict, 
@@ -422,7 +422,7 @@ class LuckyNumberGUI:
         
         ttk.Label(
             pred_frame,
-            text="💰 智能投注策略 - 收益最大化",
+            text="💰 智能投注策略 - 斐波那契策略",
             font=('', 10, 'bold'),
             foreground="darkred"
         ).grid(row=16, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
@@ -436,7 +436,7 @@ class LuckyNumberGUI:
         
         ttk.Label(
             pred_frame,
-            text="← TOP5渐进式投注：马丁格尔/斐波那契/达朗贝尔 🔥",
+            text="← TOP15斐波那契投注策略 🔥",
             font=('', 9, 'bold'),
             foreground="darkred"
         ).grid(row=17, column=1, sticky=tk.W, padx=5)
@@ -490,6 +490,11 @@ class LuckyNumberGUI:
         ttk.Button(
             button_frame, text="🗑️ 清空日志", command=self.clear_output, width=15
         ).grid(row=0, column=0, padx=5)
+        
+        # 保存日志按钮
+        ttk.Button(
+            button_frame, text="💾 保存日志", command=self.save_log, width=15
+        ).grid(row=0, column=1, padx=5)
         
     def browse_file(self):
         """浏览并选择数据文件"""
@@ -1510,6 +1515,71 @@ class LuckyNumberGUI:
             self.log_output("✅ Top 15 预测完成\n")
             self.log_output(f"{'='*70}\n")
             
+            # 自动保存预测结果到txt文件
+            try:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_dir = "预测结果"
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                
+                output_file = os.path.join(output_dir, f"Top15预测结果_{timestamp}.txt")
+                
+                # 构建保存内容
+                save_content = f"{'='*70}\n"
+                save_content += f"Top 15 预测结果 - 60%成功率固化版本\n"
+                save_content += f"{'='*70}\n"
+                save_content += f"预测时间: {current_time}\n"
+                save_content += f"数据来源: {file_path}\n"
+                save_content += f"历史数据: {len(numbers)} 期\n"
+                save_content += f"最近10期: {numbers[-10:].tolist()}\n\n"
+                
+                save_content += f"当前趋势分析:\n"
+                save_content += f"  趋势判断: {analysis['trend']}\n"
+                save_content += f"  极端值占比: {analysis['extreme_ratio']:.0f}% (最近10期)\n\n"
+                
+                save_content += f"【Top 15 预测结果】\n\n"
+                for i, pred in enumerate(predictions[:15], 1):
+                    if i <= 5:
+                        marker = "⭐"
+                    elif i <= 10:
+                        marker = "✓"
+                    else:
+                        marker = "○"
+                    save_content += f"  {marker} {i:>2}. 数字: {pred['number']:>2}  优先级: {pred['probability']:>6.4f}\n"
+                
+                save_content += f"\n区域分布:\n"
+                for zone, nums in analysis['zones'].items():
+                    if nums:
+                        save_content += f"  {zone}: {nums}\n"
+                
+                save_content += f"\n五行分布:\n"
+                for element, nums in analysis['elements'].items():
+                    if nums:
+                        save_content += f"  {element}: {nums}\n"
+                
+                save_content += f"\n说明:\n"
+                save_content += f"• ⭐ Top 5: 最高置信度 (约30%命中率)\n"
+                save_content += f"• ✓ Top 10: 重要备选 (约40%命中率)\n"
+                save_content += f"• ○ Top 15: 核心范围 (约60%命中率)\n\n"
+                
+                # 添加验证结果（如果有）
+                if 'top15_hits' in locals() and 'total' in locals():
+                    save_content += f"【最近200期验证】\n"
+                    save_content += f"验证统计: {top15_hits}/{total} = {accuracy:.1f}%\n\n"
+                
+                save_content += f"{'='*70}\n"
+                save_content += f"预测完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                save_content += f"{'='*70}\n"
+                
+                # 写入文件
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    f.write(save_content)
+                
+                self.log_output(f"\n💾 预测结果已自动保存到: {output_file}\n")
+                
+            except Exception as save_error:
+                self.log_output(f"\n⚠️ 自动保存失败: {str(save_error)}\n")
+            
         except Exception as e:
             error_msg = f"预测失败: {str(e)}"
             self.log_output(f"\n❌ {error_msg}\n")
@@ -1520,6 +1590,46 @@ class LuckyNumberGUI:
     def clear_output(self):
         """清空输出区域"""
         self.output_text.delete(1.0, tk.END)
+    
+    def save_log(self):
+        """保存日志到文件"""
+        try:
+            from datetime import datetime
+            
+            # 获取日志内容
+            log_content = self.output_text.get(1.0, tk.END)
+            
+            if not log_content.strip():
+                messagebox.showinfo("提示", "日志内容为空，无需保存")
+                return
+            
+            # 生成默认文件名（带时间戳）
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_filename = f"预测日志_{timestamp}.txt"
+            
+            # 弹出保存对话框
+            filename = filedialog.asksaveasfilename(
+                title="保存日志",
+                defaultextension=".txt",
+                initialfile=default_filename,
+                filetypes=[
+                    ("文本文件", "*.txt"),
+                    ("所有文件", "*.*")
+                ]
+            )
+            
+            if filename:
+                # 保存到文件
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(log_content)
+                
+                messagebox.showinfo("成功", f"日志已保存到:\n{filename}")
+                self.log_output(f"\n✅ 日志已保存到: {filename}\n")
+        
+        except Exception as e:
+            error_msg = f"保存日志失败: {str(e)}"
+            messagebox.showerror("错误", error_msg)
+            self.log_output(f"\n❌ {error_msg}\n")
     
     def odd_even_predict(self):
         """奇偶性预测"""
@@ -3056,32 +3166,23 @@ class LuckyNumberGUI:
             self.log_output(f"  - 命中奖励：45元\n")
             self.log_output(f"  - 未中亏损：15元\n\n")
             
-            # 对比多种投注策略
-            strategies_to_test = {
-                'fixed': '固定1倍（保守）',
-                'dalembert': '达朗贝尔（稳健）',
-                'kelly': '凯利公式（优化）',
-                'fibonacci': '斐波那契（平衡）',
-                'aggressive': '激进马丁格尔（高风险）'
+            # 使用斐波那契投注策略
+            self.log_output(f"正在使用斐波那契投注策略进行回测...\n\n")
+            
+            # 固定使用斐波那契策略
+            best_strategy_type = 'fibonacci'
+            best_name = '斐波那契（平衡）'
+            best_result = betting.simulate_strategy(predictions_top15, actuals, best_strategy_type, hit_rate=actual_hit_rate)
+            
+            # 创建strategy_results字典以便后续使用
+            strategy_results = {
+                'fibonacci': {
+                    'name': best_name,
+                    'result': best_result
+                }
             }
             
-            self.log_output(f"正在对比 {len(strategies_to_test)} 种投注策略...\n\n")
-            
-            strategy_results = {}
-            for strategy_type, strategy_name in strategies_to_test.items():
-                result = betting.simulate_strategy(predictions_top15, actuals, strategy_type, hit_rate=actual_hit_rate)
-                strategy_results[strategy_type] = {
-                    'name': strategy_name,
-                    'result': result
-                }
-                self.log_output(f"  ✓ {strategy_name}: ROI {result['roi']:+.2f}%, 总收益 {result['total_profit']:+.2f}元\n")
-            
-            # 找出最优策略
-            best_strategy_type = max(strategy_results.items(), key=lambda x: x[1]['result']['roi'])[0]
-            best_result = strategy_results[best_strategy_type]['result']
-            best_name = strategy_results[best_strategy_type]['name']
-            
-            self.log_output(f"\n🏆 最优策略: {best_name}\n")
+            self.log_output(f"\n🏆 当前策略: {best_name}\n")
             self.log_output(f"   ROI: {best_result['roi']:+.2f}%, 总收益: {best_result['total_profit']:+.2f}元\n\n")
             
             # 输出详细统计到日志
@@ -3153,7 +3254,7 @@ class LuckyNumberGUI:
             )
             
             self.log_output(f"【当前状态】\n")
-            self.log_output(f"  推荐策略: {best_name}\n")
+            self.log_output(f"  使用策略: {best_name}\n")
             self.log_output(f"  连续亏损: {recommendation['consecutive_losses']}期\n")
             self.log_output(f"  累计亏损: {recommendation['current_total_loss']:.2f}元\n\n")
             
@@ -3293,18 +3394,11 @@ class LuckyNumberGUI:
             result_display += f"│  预测模型: ⭐综合预测Top15 (60%成功率)                        │\n"
             result_display += f"│  实际命中率: {actual_hit_rate*100:.2f}%                                        │\n"
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
-            result_display += "│  📊 策略对比（按ROI排序）                                       │\n"
+            result_display += "│  📊 使用策略                                                    │\n"
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
-            
-            # 按ROI排序显示前3个策略
-            sorted_strategies = sorted(strategy_results.items(), key=lambda x: x[1]['result']['roi'], reverse=True)
-            for i, (stype, sdata) in enumerate(sorted_strategies[:3]):
-                marker = "🏆" if i == 0 else f"{i+1}."
-                r = sdata['result']
-                result_display += f"│  {marker} {sdata['name']:<15} ROI:{r['roi']:>+7.2f}% 收益:{r['total_profit']:>+8.2f}元 │\n"
-            
+            result_display += f"│  🏆 {best_name:<15} ROI:{best_result['roi']:>+7.2f}% 收益:{best_result['total_profit']:>+8.2f}元 │\n"
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  🏆 最优策略: {best_name:<45}│\n"
+            result_display += f"│  🏆 当前策略: {best_name:<45}│\n"
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  命中率: {best_result['hit_rate']*100:>6.2f}%                                             │\n"
             result_display += f"│  总收益: {best_result['total_profit']:>+9.2f}元                                          │\n"
@@ -3559,13 +3653,16 @@ class LuckyNumberGUI:
                     self.log_output(f"  策略说明: {result['description']}\n")
                 self.log_output("\n")
             
-            # 找出最佳策略
-            best_strategy = max(strategy_results.items(), key=lambda x: x[1]['result']['roi'])
+            # 使用斐波那契投注策略
+            best_strategy = ('fibonacci', {
+                'name': '斐波那契倍投',
+                'result': strategy_results['fibonacci']['result']
+            })
             best_name = best_strategy[1]['name']
             best_result = best_strategy[1]['result']
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"🏆 最优策略: {best_name}\n")
+            self.log_output(f"🏆 当前策略: {best_name}\n")
             self.log_output(f"{'='*80}\n")
             self.log_output(f"总收益: {best_result['total_profit']:+.2f}元\n")
             self.log_output(f"ROI: {best_result['roi']:+.2f}%\n")
@@ -3670,7 +3767,7 @@ class LuckyNumberGUI:
             self.log_output(f"下期预测TOP5: {', '.join(next_top5)}\n")
             self.log_output(f"选择模型: {next_result['selected_model']}\n")
             self.log_output(f"最近连续亏损: {consecutive_losses}期\n")
-            self.log_output(f"推荐策略: {best_name}\n")
+            self.log_output(f"使用策略: {best_name}\n")
             
             # 根据策略类型显示不同的建议
             if strategies[best_strategy_type].get('type') == 'multiplier':
@@ -3891,13 +3988,16 @@ class LuckyNumberGUI:
                     self.log_output(f"  ⚠️ {strategy_info['name']}计算失败: {str(e)}\n\n")
                     continue
             
-            # 找出最佳策略
-            best_strategy = max(strategy_results.items(), key=lambda x: x[1]['result']['roi'])
+            # 使用斐波那契投注策略
+            best_strategy = ('fibonacci', {
+                'name': '斐波那契倍投',
+                'result': strategy_results['fibonacci']['result']
+            })
             best_name = best_strategy[1]['name']
             best_result = best_strategy[1]['result']
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"🏆 最优策略: {best_name}\n")
+            self.log_output(f"🏆 当前策略: {best_name}\n")
             self.log_output(f"{'='*80}\n")
             self.log_output(f"总收益: {best_result['total_profit']:+.2f}元\n")
             self.log_output(f"ROI: {best_result['roi']:+.2f}%\n")
