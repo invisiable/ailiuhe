@@ -19,8 +19,8 @@ from top15_statistical_predictor import Top15StatisticalPredictor
 from ensemble_top15_predictor import EnsembleTop15Predictor
 from zodiac_enhanced_60_predictor import ZodiacEnhanced60Predictor
 from betting_strategy import BettingStrategy  # 新增投注策略模块
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+#import matplotlib.pyplot as plt
+#from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
 import numpy as np
 
@@ -70,17 +70,18 @@ class LuckyNumberGUI:
         # 1. 数据输入区域
         self.setup_data_input_section(main_frame)
         
-        # 2. 训练配置区域
-        self.setup_training_config_section(main_frame)
+        # 2. 训练配置区域（已隐藏）
+        # self.setup_training_config_section(main_frame)
         
         # 3. 结果输出区域
         self.setup_output_section(main_frame)
+
+        # 5. 控制按钮区域
+        self.setup_control_buttons(main_frame)
         
         # 4. 预测区域
         self.setup_prediction_section(main_frame)
         
-        # 5. 控制按钮区域
-        self.setup_control_buttons(main_frame)
         
     def setup_data_input_section(self, parent):
         """设置数据输入区域"""
@@ -230,49 +231,50 @@ class LuckyNumberGUI:
         )
         info_label.grid(row=0, column=0, columnspan=4, sticky=tk.W, padx=5, pady=5)
         
-        # 固化混合策略按钮（新增）
+        # 固化混合策略按钮（隐藏）
         self.hybrid_button = ttk.Button(
             pred_frame, text="🚀 固化混合策略 v1.0", command=self.hybrid_predict, 
             state='normal', width=25
         )
-        self.hybrid_button.grid(row=1, column=0, padx=10, pady=10)
+        # self.hybrid_button.grid(row=1, column=0, padx=10, pady=10)
         
-        # 说明标签
-        ttk.Label(
-            pred_frame, 
-            text="← 使用固化模型：TOP5精准+TOP15稳定（50%成功率）",
-            font=('', 9),
-            foreground="darkgreen"
-        ).grid(row=1, column=1, sticky=tk.W, padx=5)
+        # 说明标签（隐藏）
+        # ttk.Label(
+        #     pred_frame, 
+        #     text="← 使用固化模型：TOP5精准+TOP15稳定（50%成功率）",
+        #     font=('', 9),
+        #     foreground="darkgreen"
+        # ).grid(row=1, column=1, sticky=tk.W, padx=5)
         
-        # Top20预测按钮（新增）
+        # Top20预测按钮（隐藏）
         self.top20_button = ttk.Button(
             pred_frame, text="📊 Top20预测", command=self.predict_top20, 
             state='normal', width=25
         )
-        self.top20_button.grid(row=2, column=0, padx=10, pady=10)
+        # self.top20_button.grid(row=2, column=0, padx=10, pady=10)
         
-        # 说明标签
-        ttk.Label(
-            pred_frame, 
-            text="← 扩展到Top20：50%成功率",
-            font=('', 9),
-            foreground="purple"
-        ).grid(row=2, column=1, sticky=tk.W, padx=5)
-        '''
-        # 综合预测按钮
+        # 说明标签（隐藏）
+        # ttk.Label(
+        #     pred_frame, 
+        #     text="← 扩展到Top20：50%成功率",
+        #     font=('', 9),
+        #     foreground="purple"
+        # ).grid(row=2, column=1, sticky=tk.W, padx=5)
+        
+        # 综合预测按钮（隐藏）
         self.comprehensive_button = ttk.Button(
             pred_frame, text="⭐ 综合预测 Top 15", command=self.comprehensive_predict, 
             state='normal', width=25
         )
-        self.comprehensive_button.grid(row=3, column=0, padx=10, pady=10)
+        # self.comprehensive_button.grid(row=3, column=0, padx=10, pady=10)
         
-        # 说明标签
-        ttk.Label(
-            pred_frame, 
-            text="← 综合5种统计方法（60%成功率）",
-            font=('', 9)
-        ).grid(row=3, column=1, sticky=tk.W, padx=5)
+        # 说明标签（隐藏）
+        # ttk.Label(
+        #     pred_frame, 
+        #     text="← 综合5种统计方法（60%成功率）",
+        #     font=('', 9)
+        # ).grid(row=3, column=1, sticky=tk.W, padx=5)
+        '''
         """   
         # 奇偶预测按钮（新增）
         self.odd_even_button = ttk.Button(
@@ -345,133 +347,133 @@ class LuckyNumberGUI:
             foreground="red"
         ).grid(row=8, column=1, sticky=tk.W, padx=5)
         """
-        # 生肖预测版本选择区域
-        zodiac_separator = ttk.Separator(pred_frame, orient='horizontal')
-        zodiac_separator.grid(row=9, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+        # 生肖预测版本选择区域（隐藏）
+        # zodiac_separator = ttk.Separator(pred_frame, orient='horizontal')
+        # zodiac_separator.grid(row=9, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
         
-        # 生肖预测版本选择区域
-        zodiac_separator = ttk.Separator(pred_frame, orient='horizontal')
-        zodiac_separator.grid(row=9, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+        # 生肖预测版本选择区域（隐藏）
+        # zodiac_separator = ttk.Separator(pred_frame, orient='horizontal')
+        # zodiac_separator.grid(row=9, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
         
-        ttk.Label(
-            pred_frame,
-            text="生肖预测 - 三种智能版本选择",
-            font=('', 10, 'bold'),
-            foreground="darkblue"
-        ).grid(row=10, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
+        # ttk.Label(
+        #     pred_frame,
+        #     text="生肖预测 - 三种智能版本选择",
+        #     font=('', 10, 'bold'),
+        #     foreground="darkblue"
+        # ).grid(row=10, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
         
-        # v10.0 简化智能选择器
+        # v10.0 简化智能选择器（隐藏）
         self.zodiac_v10_button = ttk.Button(
             pred_frame, text="🐉 v10.0 稳定版", command=self.zodiac_predict_v10,
             state='normal', width=25
         )
-        self.zodiac_v10_button.grid(row=11, column=0, padx=10, pady=5)
+        # self.zodiac_v10_button.grid(row=11, column=0, padx=10, pady=5)
         
-        ttk.Label(
-            pred_frame,
-            text="← 长期稳定：100期52%，动态切换3模型",
-            font=('', 9),
-            foreground="darkgreen"
-        ).grid(row=11, column=1, sticky=tk.W, padx=5)
+        # ttk.Label(
+        #     pred_frame,
+        #     text="← 长期稳定：100期52%，动态切换3模型",
+        #     font=('', 9),
+        #     foreground="darkgreen"
+        # ).grid(row=11, column=1, sticky=tk.W, padx=5)
         
-        # v5.0 超级预测器（原v11.0位置）
+        # v5.0 超级预测器（隐藏）
         self.zodiac_v11_button = ttk.Button(
             pred_frame, text="🐉 v5.0 超级版", command=self.zodiac_predict_v11,
             state='normal', width=25
         )
-        self.zodiac_v11_button.grid(row=12, column=0, padx=10, pady=5)
+        # self.zodiac_v11_button.grid(row=12, column=0, padx=10, pady=5)
         
-        ttk.Label(
-            pred_frame,
-            text="← 7策略综合：100期52%，均衡稳定 ⭐",
-            font=('', 9),
-            foreground="darkorange"
-        ).grid(row=12, column=1, sticky=tk.W, padx=5)
+        # ttk.Label(
+        #     pred_frame,
+        #     text="← 7策略综合：100期52%，均衡稳定 ⭐",
+        #     font=('', 9),
+        #     foreground="darkorange"
+        # ).grid(row=12, column=1, sticky=tk.W, padx=5)
         
-        # v12.0 平衡智能选择器
+        # v12.0 平衡智能选择器（隐藏）
         self.zodiac_v12_button = ttk.Button(
             pred_frame, text="🐉 v12.0 平衡版", command=self.zodiac_predict_v12,
             state='normal', width=25
         )
-        self.zodiac_v12_button.grid(row=13, column=0, padx=10, pady=5)
+        # self.zodiac_v12_button.grid(row=13, column=0, padx=10, pady=5)
         
-        ttk.Label(
-            pred_frame,
-            text="← 综合平衡：100期51% + 爆发检测增强 ⭐",
-            font=('', 9, 'bold'),
-            foreground="red"
-        ).grid(row=13, column=1, sticky=tk.W, padx=5)
+        # ttk.Label(
+        #     pred_frame,
+        #     text="← 综合平衡：100期51% + 爆发检测增强 ⭐",
+        #     font=('', 9, 'bold'),
+        #     foreground="red"
+        # ).grid(row=13, column=1, sticky=tk.W, padx=5)
         
-        # TOP4精准预测（新增）
+        # TOP4精准预测（隐藏）
         self.zodiac_top4_button = ttk.Button(
             pred_frame, text="🎯 TOP4精准版", command=self.zodiac_predict_top4,
             state='normal', width=25
         )
-        self.zodiac_top4_button.grid(row=14, column=0, padx=10, pady=5)
+        # self.zodiac_top4_button.grid(row=14, column=0, padx=10, pady=5)
         
-        ttk.Label(
-            pred_frame,
-            text="← 精准TOP4：平衡成本与精准度 🎯",
-            font=('', 9, 'bold'),
-            foreground="blue"
-        ).grid(row=14, column=1, sticky=tk.W, padx=5)
+        # ttk.Label(
+        #     pred_frame,
+        #     text="← 精准TOP4：平衡成本与精准度 🎯",
+        #     font=('', 9, 'bold'),
+        #     foreground="blue"
+        # ).grid(row=14, column=1, sticky=tk.W, padx=5)
         
         # 投注策略区域（新增）
         betting_separator = ttk.Separator(pred_frame, orient='horizontal')
-        betting_separator.grid(row=15, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
+        betting_separator.grid(row=1, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=10)
         
         ttk.Label(
             pred_frame,
-            text="💰 智能投注策略 - 斐波那契策略",
+            text="💰 生肖智能投注策略",
             font=('', 10, 'bold'),
             foreground="darkred"
-        ).grid(row=16, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
+        ).grid(row=2, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
         
-        # 投注策略分析按钮
+        # TOP15投注策略分析按钮（隐藏）
         self.betting_strategy_button = ttk.Button(
             pred_frame, text="💰 投注策略分析", command=self.analyze_betting_strategy,
             state='normal', width=25
         )
-        self.betting_strategy_button.grid(row=17, column=0, padx=10, pady=5)
+        # self.betting_strategy_button.grid(row=17, column=0, padx=10, pady=5)
         
-        ttk.Label(
-            pred_frame,
-            text="← TOP15斐波那契投注策略 🔥",
-            font=('', 9, 'bold'),
-            foreground="darkred"
-        ).grid(row=17, column=1, sticky=tk.W, padx=5)
+        # ttk.Label(
+        #     pred_frame,
+        #     text="← TOP15斐波那契投注策略 🔥",
+        #     font=('', 9, 'bold'),
+        #     foreground="darkred"
+        # ).grid(row=17, column=1, sticky=tk.W, padx=5)
         
-        # 生肖投注策略按钮（新增）
+        # 生肖投注策略按钮（保留）
         self.zodiac_betting_button = ttk.Button(
             pred_frame, text="🐉 生肖TOP5投注", command=self.analyze_zodiac_betting,
             state='normal', width=25
         )
-        self.zodiac_betting_button.grid(row=18, column=0, padx=10, pady=5)
+        self.zodiac_betting_button.grid(row=3, column=0, padx=10, pady=5)
         
         ttk.Label(
             pred_frame,
             text="← 生肖TOP5投注：每期20元，命中奖45元，多种倍投策略 🔥",
             font=('', 9, 'bold'),
             foreground="purple"
-        ).grid(row=18, column=1, sticky=tk.W, padx=5)
+        ).grid(row=3, column=1, sticky=tk.W, padx=5)
         
-        # 生肖TOP4投注策略按钮（新增）
+        # 生肖TOP4投注策略按钮（保留）
         self.zodiac_top4_betting_button = ttk.Button(
             pred_frame, text="🎯 生肖TOP4投注", command=self.analyze_zodiac_top4_betting,
             state='normal', width=25
         )
-        self.zodiac_top4_betting_button.grid(row=19, column=0, padx=10, pady=5)
+        self.zodiac_top4_betting_button.grid(row=4, column=0, padx=10, pady=5)
         
         ttk.Label(
             pred_frame,
             text="← 生肖TOP4平衡：每期16元，命中奖45元，平衡投注 🎯",
             font=('', 9, 'bold'),
             foreground="blue"
-        ).grid(row=19, column=1, sticky=tk.W, padx=5)
+        ).grid(row=4, column=1, sticky=tk.W, padx=5)
         
         # 预测结果显示区域
         result_frame = ttk.Frame(pred_frame)
-        result_frame.grid(row=20, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
+        result_frame.grid(row=5, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
         result_frame.columnconfigure(0, weight=1)
         
         self.result_text = scrolledtext.ScrolledText(
@@ -587,7 +589,6 @@ class LuckyNumberGUI:
                 self.log_output(f"\n✅ 已自动加载默认数据文件\n")
                 self.log_output(f"   文件: {file_path}\n")
                 self.log_output(f"   数据量: {len(df)}期\n")
-                self.log_output(f"   无需训练，可直接使用【综合预测 Top 15】\n\n")
         except:
             pass
     
@@ -642,9 +643,9 @@ class LuckyNumberGUI:
             self.root.after(0, lambda: self.comprehensive_button.config(state='normal'))  # 启用综合预测
             self.root.after(0, lambda: messagebox.showinfo("成功", "模型训练完成！\n现在可以进行预测了。"))
             
-            # 绘制图表
-            self.root.after(0, lambda: self.plot_predictions(results))
-            self.root.after(0, lambda: self.plot_feature_importance())
+            # 绘制图表（已禁用 - matplotlib未启用）
+            # self.root.after(0, lambda: self.plot_predictions(results))
+            # self.root.after(0, lambda: self.plot_feature_importance())
             
         except Exception as e:
             error_msg = f"训练失败: {str(e)}"
@@ -654,74 +655,76 @@ class LuckyNumberGUI:
         finally:
             self.root.after(0, lambda: self.train_button.config(state='normal'))
     
-    def plot_predictions(self, results):
-        """绘制预测效果对比图"""
-        try:
-            for widget in self.chart_frame1.winfo_children():
-                widget.destroy()
-            
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
-            
-            # 测试集预测对比
-            y_test = results['y_test']
-            y_pred = results['y_pred']
-            
-            ax1.plot(y_test, 'b-o', label='实际值', markersize=4)
-            ax1.plot(y_pred, 'r--s', label='预测值', markersize=4)
-            ax1.set_xlabel('样本索引')
-            ax1.set_ylabel('幸运数字')
-            ax1.set_title('测试集预测效果对比')
-            ax1.legend()
-            ax1.grid(True, alpha=0.3)
-            
-            # 预测误差分布
-            errors = y_test - y_pred
-            ax2.hist(errors, bins=30, color='orange', alpha=0.7, edgecolor='black')
-            ax2.set_xlabel('预测误差')
-            ax2.set_ylabel('频数')
-            ax2.set_title('预测误差分布')
-            ax2.axvline(x=0, color='red', linestyle='--', linewidth=2)
-            ax2.grid(True, alpha=0.3)
-            
-            plt.tight_layout()
-            
-            canvas = FigureCanvasTkAgg(fig, master=self.chart_frame1)
-            canvas.draw()
-            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-            
-        except Exception as e:
-            self.log_output(f"\n绘制预测图表失败: {str(e)}\n")
+    # 绘图功能已禁用（matplotlib未启用）
+    # def plot_predictions(self, results):
+    #     """绘制预测效果对比图"""
+    #     try:
+    #         for widget in self.chart_frame1.winfo_children():
+    #             widget.destroy()
+    #         
+    #         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+    #         
+    #         # 测试集预测对比
+    #         y_test = results['y_test']
+    #         y_pred = results['y_pred']
+    #         
+    #         ax1.plot(y_test, 'b-o', label='实际值', markersize=4)
+    #         ax1.plot(y_pred, 'r--s', label='预测值', markersize=4)
+    #         ax1.set_xlabel('样本索引')
+    #         ax1.set_ylabel('幸运数字')
+    #         ax1.set_title('测试集预测效果对比')
+    #         ax1.legend()
+    #         ax1.grid(True, alpha=0.3)
+    #         
+    #         # 预测误差分布
+    #         errors = y_test - y_pred
+    #         ax2.hist(errors, bins=30, color='orange', alpha=0.7, edgecolor='black')
+    #         ax2.set_xlabel('预测误差')
+    #         ax2.set_ylabel('频数')
+    #         ax2.set_title('预测误差分布')
+    #         ax2.axvline(x=0, color='red', linestyle='--', linewidth=2)
+    #         ax2.grid(True, alpha=0.3)
+    #         
+    #         plt.tight_layout()
+    #         
+    #         canvas = FigureCanvasTkAgg(fig, master=self.chart_frame1)
+    #         canvas.draw()
+    #         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    #         
+    #     except Exception as e:
+    #         self.log_output(f"\n绘制预测图表失败: {str(e)}\n")
     
-    def plot_feature_importance(self):
-        """绘制特征重要性图"""
-        try:
-            importance_data = self.predictor.get_feature_importance()
-            if importance_data is None:
-                return
-            
-            for widget in self.chart_frame2.winfo_children():
-                widget.destroy()
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            
-            features, importances = zip(*importance_data)
-            indices = np.argsort(importances)[::-1][:15]  # 前15个
-            
-            ax.barh(range(len(indices)), [importances[i] for i in indices], color='skyblue')
-            ax.set_yticks(range(len(indices)))
-            ax.set_yticklabels([features[i] for i in indices])
-            ax.set_xlabel('重要性')
-            ax.set_title('特征重要性排名 (Top 15)')
-            ax.invert_yaxis()
-            
-            plt.tight_layout()
-            
-            canvas = FigureCanvasTkAgg(fig, master=self.chart_frame2)
-            canvas.draw()
-            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-            
-        except Exception as e:
-            self.log_output(f"\n绘制特征重要性图失败: {str(e)}\n")
+    # 绘图功能已禁用（matplotlib未启用）
+    # def plot_feature_importance(self):
+    #     """绘制特征重要性图"""
+    #     try:
+    #         importance_data = self.predictor.get_feature_importance()
+    #         if importance_data is None:
+    #             return
+    #         
+    #         for widget in self.chart_frame2.winfo_children():
+    #             widget.destroy()
+    #         
+    #         fig, ax = plt.subplots(figsize=(10, 6))
+    #         
+    #         features, importances = zip(*importance_data)
+    #         indices = np.argsort(importances)[::-1][:15]  # 前15个
+    #         
+    #         ax.barh(range(len(indices)), [importances[i] for i in indices], color='skyblue')
+    #         ax.set_yticks(range(len(indices)))
+    #         ax.set_yticklabels([features[i] for i in indices])
+    #         ax.set_xlabel('重要性')
+    #         ax.set_title('特征重要性排名 (Top 15)')
+    #         ax.invert_yaxis()
+    #         
+    #         plt.tight_layout()
+    #         
+    #         canvas = FigureCanvasTkAgg(fig, master=self.chart_frame2)
+    #         canvas.draw()
+    #         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+    #         
+    #     except Exception as e:
+    #         self.log_output(f"\n绘制特征重要性图失败: {str(e)}\n")
     
     def predict_numbers(self):
         """预测幸运数字"""
@@ -3851,7 +3854,7 @@ class LuckyNumberGUI:
             self.log_output(f"\n{traceback.format_exc()}\n")
     
     def analyze_zodiac_top4_betting(self):
-        """生肖TOP4投注策略分析 - 使用最新集成预测器"""
+        """生肖TOP4投注策略分析 - 使用集成预测器"""
         try:
             from datetime import datetime
             from ensemble_zodiac_predictor import EnsembleZodiacPredictor
@@ -3885,12 +3888,12 @@ class LuckyNumberGUI:
             self.log_output(f"• 命中奖励: 45元\n")
             self.log_output(f"• 净利润: 45 - 16 = 29元\n")
             self.log_output(f"• 未命中亏损: -16元\n")
-            self.log_output(f"• 使用模型: 集成预测器 v12.0 (v10 + 优化版投票) ⭐\n")
-            self.log_output(f"• 预期命中率: 50% (相比v10提升约6%)\n")
+            self.log_output(f"• 使用模型: 集成预测器 (v10 + 优化版投票) ⭐\n")
+            self.log_output(f"• 预期命中率: 46% (100期验证，优于v10的41%)\n")
             self.log_output(f"• 优势: 相比TOP5降低20%成本，相比TOP3提升10%命中率\n\n")
             
             self.log_output(f"{'='*80}\n")
-            self.log_output("第一步：生成历史TOP4生肖预测（使用集成模型）\n")
+            self.log_output("第一步：生成历史TOP4生肖预测（使用集成预测器）\n")
             self.log_output(f"{'='*80}\n\n")
             
             # 创建集成预测器
@@ -3901,7 +3904,7 @@ class LuckyNumberGUI:
             actuals = []
             hit_records = []
             
-            self.log_output("开始生成每期的TOP4生肖预测（集成v10 + 优化版）...\n")
+            self.log_output("开始生成每期的TOP4生肖预测（集成预测器）...\n")
             
             for i in range(start_idx, len(df)):
                 # 使用i之前的数据进行预测
@@ -3945,7 +3948,7 @@ class LuckyNumberGUI:
             base_roi = (base_profit / (16 * len(hit_records))) * 100
             
             self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
-            self.log_output(f"总投入: {12 * len(hit_records)}元\n")
+            self.log_output(f"总投入: {16 * len(hit_records)}元\n")
             self.log_output(f"总收益: {base_profit:+.2f}元\n")
             self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
             
@@ -4057,10 +4060,10 @@ class LuckyNumberGUI:
             self.log_output("第五步：下期投注建议\n")
             self.log_output(f"{'='*80}\n\n")
             
-            # 获取下期预测
-            all_animals = df['animal'].tolist()
-            next_result = self.zodiac_v10.predict_from_history(all_animals, top_n=5, debug=False)
-            next_top4 = next_result['top5'][:4]
+            # 获取下期预测 - 使用集成预测器
+            all_animals = [str(a).strip() for a in df['animal'].tolist()]
+            next_result = ensemble_predictor.predict_from_history(all_animals, top_n=5, debug=False)
+            next_top4 = next_result['top4']  # 直接取TOP4
             
             # 计算最近连续亏损
             consecutive_losses_recent = 0
@@ -4090,7 +4093,7 @@ class LuckyNumberGUI:
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
             result_display += "│                   🎯 生肖TOP4投注策略分析报告 🎯                     │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  分析期数: {test_periods}期 (v10.0 TOP4平衡模式)                              │\n"
+            result_display += f"│  分析期数: {test_periods}期 (集成预测器)                                      │\n"
             result_display += f"│  实际命中率: {hit_rate*100:.2f}% ({hits}/{len(hit_records)})                                  │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += "│  📊 策略对比（按ROI排序）                                              │\n"

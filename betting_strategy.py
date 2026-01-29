@@ -207,6 +207,185 @@ class BettingStrategy:
         
         return multiplier, bet_amount
     
+    def calculate_dynamic_bet(self, consecutive_wins: int, consecutive_losses: int) -> Tuple[int, float]:
+        """
+        动态投注策略（智能平衡）
+        
+        核心逻辑：
+        - 连续命中时：减少倍数（止盈思维）
+        - 连续失败时：增加倍数（回本策略）
+        - 连续2期失败：显著增加倍数
+        
+        规则：
+        1. 初始倍数：1倍
+        2. 每连胜1期：倍数减少0.5（最低0.5倍，即减半投注）
+        3. 连续失败1期：倍数+1
+        4. 连续失败2期：倍数+3（加速回本）
+        5. 连续失败3期及以上：每期再+2
+        
+        Args:
+            consecutive_wins: 连续命中次数
+            consecutive_losses: 连续失败次数
+            
+        Returns:
+            (投注倍数, 投注金额)
+        """
+        base_multiplier = 1.0
+        
+        # 连胜处理：每连胜1期，倍数减少0.5
+        if consecutive_wins > 0:
+            # 连胜越多，投注越保守
+            reduction = consecutive_wins * 0.5
+            multiplier = max(0.5, base_multiplier - reduction)  # 最低0.5倍
+        
+        # 连败处理：根据连败次数递增倍数
+        elif consecutive_losses > 0:
+            if consecutive_losses == 1:
+                # 首次失败：倍数+1
+                multiplier = base_multiplier + 1
+            elif consecutive_losses == 2:
+                # 连续2期失败：倍数+3（重点回本）
+                multiplier = base_multiplier + 3
+            else:
+                # 连续3期及以上：+3 + (n-2)*2
+                multiplier = base_multiplier + 3 + (consecutive_losses - 2) * 2
+        
+        else:
+            # 初始状态
+            multiplier = base_multiplier
+        
+        # 限制最大倍数
+        multiplier = min(multiplier, self.max_multiplier)
+        
+        # 计算投注金额（支持小数倍数）
+        bet_amount = multiplier * self.base_bet
+        
+        return multiplier, bet_amount
+    
+    def calculate_selective_dynamic_bet(self, consecutive_wins: int, consecutive_losses: int) -> Tuple[int, float, bool]:
+        """
+        选择性动态投注策略（更保守）
+        
+        核心逻辑：
+        - 默认1倍投注
+        - 连续失败2期才开始加倍（更谨慎）
+        - 连续成功2期才减少投注
+        - 某些情况可以选择不投注（skip）
+        
+        规则：
+        1. 初始/连胜1期/连败1期：1倍投注
+        2. 连续成功2期：下一期0.8倍（略微保守）
+        3. 连续成功3期+：0.5倍（大幅保守）
+        4. 连续失败2期：开始加倍到2倍
+        5. 连续失败3期：4倍
+        6. 连续失败4期+：每期再+2倍
+        7. 跳过投注条件：连胜3期后的第一次失败可选择观望
+        
+        Args:
+            consecutive_wins: 连续命中次数
+            consecutive_losses: 连续失败次数
+            
+        Returns:
+            (投注倍数, 投注金额, 是否投注)
+        """
+        base_multiplier = 1.0
+        should_bet = True  # 默认投注
+        
+        # 连胜处理：需要连续2期成功才减少投注
+        if consecutive_wins >= 3:
+            # 连胜3期及以上：大幅保守
+            multiplier = 0.5
+        elif consecutive_wins == 2:
+            # 连胜2期：略微保守
+            multiplier = 0.8
+        elif consecutive_wins == 1:
+            # 连胜1期：保持基础倍数
+            multiplier = base_multiplier
+        
+        # 连败处理：需要连续2期失败才开始加倍
+        elif consecutive_losses >= 4:
+            # 连败4期及以上：每期+2倍
+            multiplier = 4.0 + (consecutive_losses - 3) * 2
+        elif consecutive_losses == 3:
+            # 连败3期：4倍加速
+            multiplier = 4.0
+        elif consecutive_losses == 2:
+            # 连败2期：开始加倍到2倍
+            multiplier = 2.0
+        elif consecutive_losses == 1:
+            # 首次失败：保持基础倍数，可选择观望
+            multiplier = base_multiplier
+            # 如果刚从连胜3期转为失败，可以选择跳过本期观望
+            # 这里暂时不跳过，保持投注
+            should_bet = True
+        
+        else:
+            # 初始状态
+            multiplier = base_multiplier
+        
+        # 限制最大倍数
+        multiplier = min(multiplier, self.max_multiplier)
+        
+        # 计算投注金额
+        bet_amount = multiplier * self.base_bet if should_bet else 0
+        
+        return multiplier, bet_amount, should_bet
+    
+    def calculate_stable_dynamic_bet(self, consecutive_wins: int, consecutive_losses: int) -> Tuple[int, float]:
+        """
+        稳健动态投注策略（保守优化版）
+        
+        核心逻辑：
+        - 连胜时：始终保持1倍基础投注（不减少，享受趋势）
+        - 连败时：根据连败次数递增倍数（快速回本）
+        
+        规则：
+        1. 连胜任意期：保持1倍投注
+        2. 初始状态：1倍投注
+        3. 连续失败1期：2倍
+        4. 连续失败2期：4倍
+        5. 连续失败3期+：每期再+2倍
+        
+        优势：
+        - 连胜期保持稳定收益，不会因保守错失盈利
+        - 连败期快速追回，回本效率高
+        - 心理压力小，容易坚持执行
+        
+        Args:
+            consecutive_wins: 连续命中次数
+            consecutive_losses: 连续失败次数
+            
+        Returns:
+            (投注倍数, 投注金额)
+        """
+        base_multiplier = 1.0
+        
+        # 连胜处理：始终保持1倍基础投注
+        if consecutive_wins > 0:
+            multiplier = base_multiplier  # 不减少，保持基础倍数
+        
+        # 连败处理：根据连败次数递增
+        elif consecutive_losses > 0:
+            if consecutive_losses == 1:
+                multiplier = 2.0  # 首次失败：2倍
+            elif consecutive_losses == 2:
+                multiplier = 4.0  # 连败2期：4倍
+            else:
+                # 连败3期及以上：4 + (n-2)*2
+                multiplier = 4.0 + (consecutive_losses - 2) * 2
+        
+        else:
+            # 初始状态
+            multiplier = base_multiplier
+        
+        # 限制最大倍数
+        multiplier = min(multiplier, self.max_multiplier)
+        
+        # 计算投注金额
+        bet_amount = multiplier * self.base_bet
+        
+        return multiplier, bet_amount
+    
     def simulate_strategy(self, 
                          predictions: List[List[int]], 
                          actuals: List[int],
@@ -222,7 +401,9 @@ class BettingStrategy:
                                      'martingale', 'fibonacci', 'dalembert')
             hit_rate: 历史命中率（用于kelly策略）
             
-        Returns:
+        Returnif strategy_type == 'stable':
+                multiplier, bet_amount = self.calculate_stable_dynamic_bet(consecutive_wins, consecutive_losses)
+            els:
             包含详细统计信息的字典
         """
         if len(predictions) != len(actuals):
@@ -258,6 +439,25 @@ class BettingStrategy:
                 multiplier, bet_amount = self.calculate_fibonacci_bet(consecutive_losses)
             elif strategy_type == 'dalembert':
                 multiplier, bet_amount = self.calculate_dalembert_bet(consecutive_losses)
+            elif strategy_type == 'dynamic':
+                multiplier, bet_amount = self.calculate_dynamic_bet(consecutive_wins, consecutive_losses)
+            elif strategy_type == 'selective':
+                multiplier, bet_amount, should_bet = self.calculate_selective_dynamic_bet(consecutive_wins, consecutive_losses)
+                if not should_bet:
+                    # 跳过本期投注
+                    period_result = {
+                        'period': i + 1,
+                        'prediction': pred_top15,
+                        'actual': actual,
+                        'is_hit': False,
+                        'multiplier': 0,
+                        'bet_amount': 0,
+                        'consecutive_losses': consecutive_losses,
+                        'consecutive_wins': consecutive_wins,
+                        'skipped': True
+                    }
+                    history.append(period_result)
+                    continue
             else:  # martingale
                 multiplier, bet_amount = self.calculate_optimal_bet(
                     consecutive_losses, total_loss_accumulation
