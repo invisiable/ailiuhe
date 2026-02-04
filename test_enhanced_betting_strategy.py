@@ -18,7 +18,7 @@ def test_enhanced_strategy():
     print("\n【场景1：模拟连续亏损3期的倍投建议】")
     print("-"*80)
     
-    betting = BettingStrategy(base_bet=15, win_reward=45, loss_penalty=15)
+    betting = BettingStrategy(base_bet=15, win_reward=47, loss_penalty=15)
     
     consecutive_losses = 3
     total_loss = 45  # 3期 × 15元

@@ -20,7 +20,7 @@ class BettingStrategy:
     - 使用渐进式投注系统（类似马丁格尔策略）
     """
     
-    def __init__(self, base_bet=15, win_reward=45, loss_penalty=15):
+    def __init__(self, base_bet=15, win_reward=47, loss_penalty=15):
         """
         初始化投注策略
         
@@ -30,7 +30,7 @@ class BettingStrategy:
             loss_penalty: 未命中惩罚金额
         """
         self.base_bet = base_bet  # 15元（15个数字各1元）
-        self.win_reward = win_reward  # 45元
+        self.win_reward = win_reward  # 47元
         self.loss_penalty = loss_penalty  # 15元
         
         # 策略参数
@@ -65,7 +65,7 @@ class BettingStrategy:
             (投注倍数, 投注金额)
         """
         # 计算赔率: 奖励/成本 - 1
-        odds = (self.win_reward / self.base_bet) - 1  # (45/15) - 1 = 2
+        odds = (self.win_reward / self.base_bet) - 1  # (47/15) - 1 ≈ 2.13
         
         # 凯利公式
         p = hit_rate  # 胜率

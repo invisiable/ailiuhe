@@ -40,7 +40,7 @@ def test_top15_betting():
             print(f"期号 {i+1}: TOP15={top15[:5]}... 实际={actual} {hit}")
     
     # 创建投注策略（每期15个数字，每个1元）
-    betting = BettingStrategy(base_bet=15, win_reward=45, loss_penalty=15)
+    betting = BettingStrategy(base_bet=15, win_reward=47, loss_penalty=15)
     
     print(f"\n执行投注策略回测...\n")
     

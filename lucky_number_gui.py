@@ -452,7 +452,7 @@ class LuckyNumberGUI:
         
         ttk.Label(
             pred_frame,
-            text="← 生肖TOP5投注：每期20元，命中奖45元，多种倍投策略 🔥",
+            text="← 生肖TOP5投注：每期20元，命中奖47元，多种倍投策略 🔥",
             font=('', 9, 'bold'),
             foreground="purple"
         ).grid(row=3, column=1, sticky=tk.W, padx=5)
@@ -3003,7 +3003,7 @@ class LuckyNumberGUI:
                 marker = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🏅" if i == 4 else "⭐"
                 result_display += f"│   {marker} {zodiac:<50} │\n"
             result_display += "│   • 投注成本: 20元 (每个生肖4元)                        │\n"
-            result_display += "│   • 命中收益: +25元 (45元-20元)                         │\n"
+            result_display += "│   • 命中收益: +27元 (47元-20元)                         │\n"
             result_display += "│   • 预期命中率: 55-60% (基于最近100期验证)             │\n"
             result_display += "│                                                         │\n"
             result_display += "├─────────────────────────────────────────────────────────┤\n"
@@ -3156,7 +3156,7 @@ class LuckyNumberGUI:
             actual_hit_rate = sum(1 for i in range(len(actuals)) if actuals[i] in predictions_top15[i]) / len(actuals)
             
             # 创建投注策略实例（每期15个数字，每个1元）
-            betting = BettingStrategy(base_bet=15, win_reward=45, loss_penalty=15)
+            betting = BettingStrategy(base_bet=15, win_reward=47, loss_penalty=15)
             
             # 执行投注策略分析（对比多种策略）
             self.log_output(f"{'='*70}\n")
@@ -3166,7 +3166,7 @@ class LuckyNumberGUI:
             self.log_output(f"投注规则：\n")
             self.log_output(f"  - 每期购买：TOP15全部15个数字\n")
             self.log_output(f"  - 单注成本：15元（15个×1元）\n")
-            self.log_output(f"  - 命中奖励：45元\n")
+            self.log_output(f"  - 命中奖励：47元\n")
             self.log_output(f"  - 未中亏损：15元\n\n")
             
             # 使用斐波那契投注策略
@@ -3491,12 +3491,13 @@ class LuckyNumberGUI:
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"投注规则说明\n")
+            self.log_output(f"投注规则说明（20倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"• 每期投入: 20元 (每个生肖4元 × 5个生肖)\n")
-            self.log_output(f"• 命中奖励: 45元\n")
-            self.log_output(f"• 净利润: 45 - 20 = 25元\n")
-            self.log_output(f"• 未命中亏损: -20元\n")
+            self.log_output(f"• 基本倍投: 20倍\n")
+            self.log_output(f"• 每期投入: 400元 (每个生肖80元 × 5个生肖)\n")
+            self.log_output(f"• 命中奖励: 940元 (47元 × 20倍)\n")
+            self.log_output(f"• 净利润: 940 - 400 = 540元\n")
+            self.log_output(f"• 未命中亏损: -400元\n")
             self.log_output(f"• 使用模型: v10.0 简化智能选择器 (52%成功率)\n\n")
             
             self.log_output(f"{'='*80}\n")
@@ -3538,23 +3539,51 @@ class LuckyNumberGUI:
             hit_rate = hits / len(hit_records)
             
             self.log_output(f"{'='*80}\n")
-            self.log_output("第二步：基础投注策略分析（每期20元固定投注）\n")
+            self.log_output("第二步：基础投注策略分析（每期400元固定投注，20倍）\n")
             self.log_output(f"{'='*80}\n\n")
             
-            # 基础策略：固定投注
+            # 基础策略：固定投注（20倍）
             base_profit = 0
-            for hit in hit_records:
-                if hit:
-                    base_profit += 25  # 净利润
-                else:
-                    base_profit -= 20  # 亏损
+            monthly_profits = {}  # 存储每月收益
             
-            base_roi = (base_profit / (20 * len(hit_records))) * 100
+            for idx, hit in enumerate(hit_records):
+                # 获取日期信息
+                period_idx = start_idx + idx
+                date_str = df.iloc[period_idx]['date']
+                try:
+                    # 解析年月
+                    from datetime import datetime
+                    date_obj = pd.to_datetime(date_str)
+                    month_key = date_obj.strftime('%Y/%m')
+                except:
+                    month_key = date_str[:7] if len(date_str) >= 7 else '未知'
+                
+                if month_key not in monthly_profits:
+                    monthly_profits[month_key] = 0
+                
+                if hit:
+                    period_profit = 540  # 净利润 (940-400)
+                else:
+                    period_profit = -400  # 亏损
+                
+                base_profit += period_profit
+                monthly_profits[month_key] += period_profit
+            
+            base_roi = (base_profit / (400 * len(hit_records))) * 100
             
             self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
-            self.log_output(f"总投入: {20 * len(hit_records)}元\n")
+            self.log_output(f"总投入: {400 * len(hit_records)}元\n")
             self.log_output(f"总收益: {base_profit:+.2f}元\n")
             self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
+            
+            # 输出每月收益统计
+            self.log_output(f"{'='*80}\n")
+            self.log_output("📊 每月收益统计（20倍基本倍投）\n")
+            self.log_output(f"{'='*80}\n")
+            for month in sorted(monthly_profits.keys()):
+                profit = monthly_profits[month]
+                self.log_output(f"{month}: {profit:+10.2f}元\n")
+            self.log_output(f"{'='*80}\n\n")
             
             # 新增：分析预测位置分布
             self.log_output(f"{'='*80}\n")
@@ -3882,12 +3911,13 @@ class LuckyNumberGUI:
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"投注规则说明\n")
+            self.log_output(f"投注规则说明（20倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"• 每期投入: 16元 (每个生肖4元 × 4个生肖)\n")
-            self.log_output(f"• 命中奖励: 45元\n")
-            self.log_output(f"• 净利润: 45 - 16 = 29元\n")
-            self.log_output(f"• 未命中亏损: -16元\n")
+            self.log_output(f"• 基本倍投: 20倍\n")
+            self.log_output(f"• 每期投入: 320元 (每个生肖80元 × 4个生肖)\n")
+            self.log_output(f"• 命中奖励: 940元 (47元 × 20倍)\n")
+            self.log_output(f"• 净利润: 940 - 320 = 620元\n")
+            self.log_output(f"• 未命中亏损: -320元\n")
             self.log_output(f"• 使用模型: 集成预测器 (v10 + 优化版投票) ⭐\n")
             self.log_output(f"• 预期命中率: 46% (100期验证，优于v10的41%)\n")
             self.log_output(f"• 优势: 相比TOP5降低20%成本，相比TOP3提升10%命中率\n\n")
@@ -3934,23 +3964,51 @@ class LuckyNumberGUI:
             hit_rate = hits / len(hit_records)
             
             self.log_output(f"{'='*80}\n")
-            self.log_output("第二步：基础投注策略分析（每期16元固定投注）\n")
+            self.log_output("第二步：基础投注策略分析（每期320元固定投注，20倍）\n")
             self.log_output(f"{'='*80}\n\n")
             
-            # 基础策略：固定投注
+            # 基础策略：固定投注（20倍）
             base_profit = 0
-            for hit in hit_records:
-                if hit:
-                    base_profit += 29  # 净利润
-                else:
-                    base_profit -= 16  # 亏损
+            monthly_profits = {}  # 存储每月收益
             
-            base_roi = (base_profit / (16 * len(hit_records))) * 100
+            for idx, hit in enumerate(hit_records):
+                # 获取日期信息
+                period_idx = start_idx + idx
+                date_str = df.iloc[period_idx]['date']
+                try:
+                    # 解析年月
+                    from datetime import datetime
+                    date_obj = pd.to_datetime(date_str)
+                    month_key = date_obj.strftime('%Y/%m')
+                except:
+                    month_key = date_str[:7] if len(date_str) >= 7 else '未知'
+                
+                if month_key not in monthly_profits:
+                    monthly_profits[month_key] = 0
+                
+                if hit:
+                    period_profit = 620  # 净利润 (940-320)
+                else:
+                    period_profit = -320  # 亏损
+                
+                base_profit += period_profit
+                monthly_profits[month_key] += period_profit
+            
+            base_roi = (base_profit / (320 * len(hit_records))) * 100
             
             self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
-            self.log_output(f"总投入: {16 * len(hit_records)}元\n")
+            self.log_output(f"总投入: {320 * len(hit_records)}元\n")
             self.log_output(f"总收益: {base_profit:+.2f}元\n")
             self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
+            
+            # 输出每月收益统计
+            self.log_output(f"{'='*80}\n")
+            self.log_output("📊 每月收益统计（20倍基本倍投）\n")
+            self.log_output(f"{'='*80}\n")
+            for month in sorted(monthly_profits.keys()):
+                profit = monthly_profits[month]
+                self.log_output(f"{month}: {profit:+10.2f}元\n")
+            self.log_output(f"{'='*80}\n\n")
             
             # 倍投策略分析（针对TOP4调整）
             self.log_output(f"{'='*80}\n")
@@ -4147,14 +4205,14 @@ class LuckyNumberGUI:
             return fib[consecutive_losses]
         return fib[-1]
     
-    def _calculate_zodiac_betting_result(self, hit_records, multiplier_func, base_bet=20, win_amount=45):
+    def _calculate_zodiac_betting_result(self, hit_records, multiplier_func, base_bet=20, win_amount=47):
         """计算生肖投注策略结果
         
         Args:
             hit_records: 命中记录列表 (True/False)
             multiplier_func: 倍数计算函数，输入连续亏损次数，返回倍数
             base_bet: 基础投注金额（默认20元）
-            win_amount: 命中奖励金额（默认45元）
+            win_amount: 命中奖励金额（默认47元）
         
         Returns:
             包含各种统计指标的字典

@@ -37,7 +37,7 @@ def compare_all_strategies():
     actual_hit_rate = sum(1 for i in range(len(actuals)) if actuals[i] in predictions[i]) / len(actuals)
     
     # 创建投注策略实例
-    betting = BettingStrategy(base_bet=15, win_reward=45, loss_penalty=15)
+    betting = BettingStrategy(base_bet=15, win_reward=47, loss_penalty=15)
     
     # 定义所有策略
     strategies = {
