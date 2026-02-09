@@ -4058,12 +4058,121 @@ class LuckyNumberGUI:
             best_result = best_strategy[1]['result']
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"🏆 当前策略: {best_name}\n")
+            self.log_output(f"🏆 基础最优策略: {best_name}\n")
             self.log_output(f"{'='*80}\n")
             self.log_output(f"总收益: {best_result['total_profit']:+.2f}元\n")
             self.log_output(f"ROI: {best_result['roi']:+.2f}%\n")
             self.log_output(f"最大连亏: {best_result['max_consecutive_losses']}期\n")
             self.log_output(f"胜率: {hit_rate*100:.2f}%\n\n")
+            
+            # 新增：止损策略分析
+            self.log_output(f"{'='*80}\n")
+            self.log_output("🛡️ 止损优化策略分析（连续3期失败后暂停投注）\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 计算止损策略结果
+            stop_loss_result = self._calculate_stop_loss_betting(
+                hit_records, 
+                stop_loss_threshold=3,
+                base_bet=16,
+                win_amount=45
+            )
+            
+            self.log_output(f"【止损策略规则】\n")
+            self.log_output(f"  • 连续3期投注失败后，自动暂停投注\n")
+            self.log_output(f"  • 暂停期间不投注，等待下次命中信号\n")
+            self.log_output(f"  • 出现命中信号时，恢复正常投注\n")
+            self.log_output(f"  • 恢复后继续使用斐波那契倍投策略\n\n")
+            
+            self.log_output(f"【止损策略效果】\n")
+            self.log_output(f"  测试期数: {len(hit_records)}期\n")
+            self.log_output(f"  实际投注期数: {stop_loss_result['actual_betting_periods']}期\n")
+            self.log_output(f"  暂停期数: {stop_loss_result['paused_periods']}期 ({stop_loss_result['paused_periods']/len(hit_records)*100:.1f}%)\n")
+            self.log_output(f"  命中次数: {stop_loss_result['hits']}次\n")
+            self.log_output(f"  命中率: {stop_loss_result['hit_rate']:.2f}%\n")
+            self.log_output(f"  总投注: {stop_loss_result['total_investment']:.2f}元\n")
+            self.log_output(f"  总收益: {stop_loss_result['total_profit']:+.2f}元\n")
+            self.log_output(f"  ROI: {stop_loss_result['roi']:+.2f}%\n")
+            self.log_output(f"  最大连败: {stop_loss_result['max_consecutive_losses']}期\n")
+            self.log_output(f"  最大回撤: {stop_loss_result['max_drawdown']:.2f}元\n\n")
+            
+            # 对比分析
+            self.log_output(f"【止损策略 vs 基础策略对比】\n")
+            improvement_profit = stop_loss_result['total_profit'] - best_result['total_profit']
+            improvement_roi = stop_loss_result['roi'] - best_result['roi']
+            saved_cost = best_result['total_investment'] - stop_loss_result['total_investment']
+            
+            self.log_output(f"  投注期数: {stop_loss_result['actual_betting_periods']}期 vs {len(hit_records)}期 (减少{len(hit_records) - stop_loss_result['actual_betting_periods']}期)\n")
+            self.log_output(f"  总投注: {stop_loss_result['total_investment']:.2f}元 vs {best_result['total_investment']:.2f}元 (节省{saved_cost:.2f}元)\n")
+            self.log_output(f"  净收益: {stop_loss_result['total_profit']:+.2f}元 vs {best_result['total_profit']:+.2f}元 ({improvement_profit:+.2f}元)\n")
+            self.log_output(f"  ROI: {stop_loss_result['roi']:+.2f}% vs {best_result['roi']:+.2f}% ({improvement_roi:+.2f}%)\n")
+            self.log_output(f"  最大连败: {stop_loss_result['max_consecutive_losses']}期 vs {best_result['max_consecutive_losses']}期\n\n")
+            
+            if improvement_roi > 0:
+                self.log_output(f"✅ 止损策略优于基础策略！ROI提升{improvement_roi:+.2f}%，推荐使用止损策略！\n\n")
+                # 更新最优策略为止损策略
+                best_name = "止损优化策略"
+                best_result = stop_loss_result
+            else:
+                self.log_output(f"⚠️  止损策略ROI略低于基础策略，但风险更可控（最大连败仅{stop_loss_result['max_consecutive_losses']}期）\n\n")
+            
+            # 🆕 倍投策略对比分析（基于3期止损）
+            self.log_output(f"{'='*80}\n")
+            self.log_output("📊 倍投策略对比分析（基于3期止损策略）\n")
+            self.log_output(f"{'='*80}\n\n")
+            
+            # 定义倍投策略
+            betting_strategies = {
+                'fixed': {'name': '固定投注', 'func': lambda x: 1},
+                'conservative': {'name': '保守倍投', 'func': lambda x: 1 if x == 0 else (1 if x == 1 else 2 if x == 2 else 2 + (x - 2))},
+                'dalembert': {'name': '达朗贝尔倍投', 'func': lambda x: 1 + x},
+                'fibonacci': {'name': '斐波那契倍投', 'func': lambda x: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89][min(x, 10)]},
+                'martingale': {'name': '马丁格尔倍投', 'func': lambda x: 1 if x == 0 else min(2 ** x, 89)}
+            }
+            
+            strategy_results = []
+            for strategy_id, strategy_info in betting_strategies.items():
+                result = self._calculate_stop_loss_betting(
+                    hit_records,
+                    stop_loss_threshold=3,
+                    base_bet=16,
+                    win_amount=45,
+                    multiplier_func=strategy_info['func']
+                )
+                result['strategy_name'] = strategy_info['name']
+                result['strategy_id'] = strategy_id
+                strategy_results.append(result)
+            
+            # 按ROI排序
+            strategy_results.sort(key=lambda x: x['roi'], reverse=True)
+            
+            self.log_output(f"{'策略名称':<12} {'ROI':<10} {'总盈利':<10} {'总投入':<10} {'最大回撤':<10} {'最大单注':<10}\n")
+            self.log_output("-" * 80 + "\n")
+            
+            for result in strategy_results:
+                self.log_output(
+                    f"{result['strategy_name']:<12} "
+                    f"{result['roi']:>+7.2f}%  "
+                    f"{result['total_profit']:>+7.0f}元  "
+                    f"{result['total_investment']:>7.0f}元  "
+                    f"{result['max_drawdown']:>7.0f}元  "
+                    f"{result['max_bet']:>7.0f}元\n"
+                )
+            
+            # 推荐最优策略
+            best_strategy_result = strategy_results[0]
+            self.log_output(f"\n⭐ 推荐策略：{best_strategy_result['strategy_name']}\n")
+            self.log_output(f"   ROI: {best_strategy_result['roi']:+.2f}%\n")
+            self.log_output(f"   总盈利: {best_strategy_result['total_profit']:+.0f}元\n")
+            self.log_output(f"   最大回撤: {best_strategy_result['max_drawdown']:.0f}元\n")
+            self.log_output(f"   风险收益比: {best_strategy_result['total_profit']/best_strategy_result['max_drawdown'] if best_strategy_result['max_drawdown'] > 0 else 0:.2f}\n\n")
+            
+            # 策略适用场景说明
+            self.log_output("【策略选择建议】\n")
+            self.log_output("  • 固定投注：适合追求高ROI和低风险的稳健型投资者 ⭐推荐\n")
+            self.log_output("  • 达朗贝尔倍投：适合追求高绝对收益，能承受中等风险的投资者\n")
+            self.log_output("  • 斐波那契倍投：适合平衡型投资者，风险和收益相对均衡\n")
+            self.log_output("  • 马丁格尔倍投：高风险高收益，需要较大资金池，不推荐新手使用\n\n")
             
             # 详细倍投收益记录（使用最佳策略）
             self.log_output(f"{'='*80}\n")
@@ -4131,21 +4240,59 @@ class LuckyNumberGUI:
                 else:
                     break
             
-            # 根据最佳策略给出建议倍数
-            if best_multiplier_func:
-                recommended_multiplier = best_multiplier_func(consecutive_losses_recent)
-            else:
-                recommended_multiplier = 1
-            recommended_bet = 16 * recommended_multiplier
+            # 判断是否应该暂停投注（止损策略）
+            should_pause_betting = consecutive_losses_recent >= 4
             
-            self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
-            self.log_output(f"选择模型: {next_result['selected_model']}\n")
-            self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-            self.log_output(f"推荐策略: {best_name}\n")
-            self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
-            self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)\n")
-            self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
-            self.log_output(f"如果未中: -{recommended_bet:.2f}元\n\n")
+            # 根据最佳策略给出建议倍数
+            if best_name == "止损优化策略":
+                if should_pause_betting:
+                    self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
+                    self.log_output(f"选择模型: {next_result['selected_model']}\n")
+                    self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
+                    self.log_output(f"推荐策略: {best_name}\n")
+                    self.log_output(f"⚠️  【止损警告】连续{consecutive_losses_recent}期失败，已触发止损阈值\n")
+                    self.log_output(f"🛡️ 投注建议: 暂停投注，等待下次命中信号\n")
+                    self.log_output(f"📊 恢复条件: 当预测命中时，自动恢复投注\n\n")
+                else:
+                    if best_multiplier_func:
+                        recommended_multiplier = best_multiplier_func(consecutive_losses_recent)
+                    else:
+                        recommended_multiplier = 1
+                    recommended_bet = 16 * recommended_multiplier
+                    
+                    self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
+                    self.log_output(f"选择模型: {next_result['selected_model']}\n")
+                    self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
+                    self.log_output(f"推荐策略: {best_name}\n")
+                    self.log_output(f"✅ 投注状态: 正常投注\n")
+                    self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
+                    self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)\n")
+                    self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
+                    self.log_output(f"如果未中: -{recommended_bet:.2f}元\n")
+                    if consecutive_losses_recent >= 3:
+                        self.log_output(f"⚠️  注意: 已连续{consecutive_losses_recent}期失败，再失败1期将触发止损\n")
+                    self.log_output("\n")
+            else:
+                # 非止损策略
+                if best_multiplier_func:
+                    recommended_multiplier = best_multiplier_func(consecutive_losses_recent)
+                else:
+                    recommended_multiplier = 1
+                recommended_bet = 16 * recommended_multiplier
+                
+                self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
+                self.log_output(f"选择模型: {next_result['selected_model']}\n")
+                self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
+                self.log_output(f"推荐策略: {best_name}\n")
+                self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
+                self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)\n")
+                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
+                self.log_output(f"如果未中: -{recommended_bet:.2f}元\n\n")
+            
+            # 在结果文本框显示汇总前，保存暂停状态
+            should_pause_for_display = consecutive_losses_recent >= 4
+            recommended_bet_display = 16 * (best_multiplier_func(consecutive_losses_recent) if best_multiplier_func and not should_pause_for_display else 1) if not should_pause_for_display else 0
+            recommended_multiplier_display = best_multiplier_func(consecutive_losses_recent) if best_multiplier_func and not should_pause_for_display else 1
             
             # 在结果文本框显示汇总
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
@@ -4157,11 +4304,14 @@ class LuckyNumberGUI:
             result_display += "│  📊 策略对比（按ROI排序）                                              │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             
-            sorted_strategies = sorted(strategy_results.items(), key=lambda x: x[1]['result']['roi'], reverse=True)
-            for i, (stype, sdata) in enumerate(sorted_strategies):
+            # strategy_results已经是排序好的list，直接遍历
+            for i, result in enumerate(strategy_results):
                 marker = "🏆" if i == 0 else f"{i+1}."
-                r = sdata['result']
-                result_display += f"│  {marker} {sdata['name']:<12} ROI:{r['roi']:>+7.2f}% 收益:{r['total_profit']:>+8.2f}元 最大投{r['max_bet']:>6.0f}元│\n"
+                result_display += f"│  {marker} {result['strategy_name']:<12} ROI:{result['roi']:>+7.2f}% 收益:{result['total_profit']:>+8.2f}元 最大投{result['max_bet']:>6.0f}元│\n"
+            
+            # 添加止损策略到对比中
+            if 'stop_loss_result' in locals() and stop_loss_result:
+                result_display += f"│  🛡️ 止损优化策略      ROI:{stop_loss_result['roi']:>+7.2f}% 收益:{stop_loss_result['total_profit']:>+8.2f}元 最大投{stop_loss_result['max_bet']:>6.0f}元│\n"
             
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  🏆 最优策略: {best_name:<56}│\n"
@@ -4170,6 +4320,11 @@ class LuckyNumberGUI:
             result_display += f"│  总收益: {best_result['total_profit']:>+9.2f}元                                             │\n"
             result_display += f"│  投资回报率: {best_result['roi']:>+6.2f}%                                                │\n"
             result_display += f"│  最大连亏: {best_result['max_consecutive_losses']}期                                                │\n"
+            
+            # 如果是止损策略，显示额外信息
+            if best_name == "止损优化策略" and 'actual_betting_periods' in best_result:
+                result_display += f"│  实际投注期数: {best_result['actual_betting_periods']}期 (暂停{best_result['paused_periods']}期)                               │\n"
+            
             result_display += f"│  最大单期投入: {best_result['max_bet']:.2f}元                                           │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += "│  🎯 下期投注建议                                                        │\n"
@@ -4178,10 +4333,19 @@ class LuckyNumberGUI:
             result_display += f"│  选择模型: {next_result['selected_model']:<56}│\n"
             result_display += f"│  最近连亏: {consecutive_losses_recent}期                                                        │\n"
             result_display += f"│  推荐策略: {best_name:<56}│\n"
-            result_display += f"│  建议倍数: {recommended_multiplier}倍                                                        │\n"
-            result_display += f"│  建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)                        │\n"
-            result_display += f"│  如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元 ✓                                       │\n"
-            result_display += f"│  如果未中: -{recommended_bet:.2f}元 ✗                                              │\n"
+            
+            # 根据止损状态显示不同建议
+            if best_name == "止损优化策略" and should_pause_for_display:
+                result_display += "│  ⚠️  止损状态: 暂停投注（连续4期失败）                                   │\n"
+                result_display += "│  🛡️ 投注建议: 等待下次命中信号                                         │\n"
+            else:
+                result_display += f"│  建议倍数: {recommended_multiplier_display}倍                                                        │\n"
+                result_display += f"│  建议投注: {recommended_bet_display:.2f}元 (每个生肖{recommended_bet_display/4:.2f}元)                        │\n"
+                result_display += f"│  如果命中: +{45*recommended_multiplier_display - recommended_bet_display:.2f}元 ✓                                       │\n"
+                result_display += f"│  如果未中: -{recommended_bet_display:.2f}元 ✗                                              │\n"
+                if best_name == "止损优化策略" and consecutive_losses_recent >= 3:
+                    result_display += "│  ⚠️  警告: 接近止损阈值，请谨慎投注                                     │\n"
+            
             result_display += "└────────────────────────────────────────────────────────────────────────┘\n"
             
             self.result_text.delete('1.0', tk.END)
@@ -4266,6 +4430,132 @@ class LuckyNumberGUI:
             'max_bet': max_bet,
             'max_drawdown': max_drawdown,
             'balance_history': balance_history
+        }
+    
+    def _calculate_stop_loss_betting(self, hit_records, stop_loss_threshold=3, base_bet=16, win_amount=45, multiplier_func=None):
+        """计算止损策略结果
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            stop_loss_threshold: 止损阈值，连续失败多少期后暂停投注（默认3期）
+            base_bet: 基础投注金额（默认16元）
+            win_amount: 命中奖励金额（默认45元）
+            multiplier_func: 倍数计算函数，接收consecutive_losses参数（可选，默认斐波那契）
+        
+        策略规则：
+            1. 连续失败3期时，停止投注
+            2. 暂停后恢复条件（满足任一即可）：
+               - 预测命中时，立即恢复投注
+               - 连续暂停8期后，第9期自动恢复投注
+        
+        Returns:
+            包含各种统计指标的字典
+        """
+        total_profit = 0
+        total_investment = 0
+        consecutive_wins = 0
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        max_consecutive_wins = 0
+        max_bet = base_bet
+        balance_history = [0]
+        max_drawdown = 0
+        peak_balance = 0
+        
+        # 止损相关变量
+        is_betting = True  # 是否当前在投注状态
+        paused_periods = 0  # 总暂停期数
+        paused_count = 0  # 当前连续暂停期数计数器
+        actual_betting_periods = 0  # 实际投注期数
+        hits = 0  # 命中次数
+        max_paused_streak = 8  # 最大连续暂停期数，超过后自动恢复
+        
+        # 默认斐波那契数列用于动态倍投
+        def fibonacci_multiplier(losses):
+            fib = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+            if losses < len(fib):
+                return fib[losses]
+            return fib[-1]
+        
+        # 使用传入的倍数函数，如果没有则使用斐波那契
+        get_multiplier = multiplier_func if multiplier_func else fibonacci_multiplier
+        
+        for hit in hit_records:
+            if is_betting:
+                # 当前在投注状态
+                paused_count = 0  # 重置暂停计数器
+                
+                # 计算当前倍数(使用传入的倍数函数或默认斐波那契)
+                multiplier = get_multiplier(consecutive_losses)
+                current_bet = base_bet * multiplier
+                total_investment += current_bet
+                actual_betting_periods += 1
+                
+                if hit:
+                    # 命中：获得奖励
+                    profit = win_amount * multiplier - current_bet
+                    total_profit += profit
+                    consecutive_wins += 1
+                    consecutive_losses = 0
+                    max_consecutive_wins = max(max_consecutive_wins, consecutive_wins)
+                    hits += 1
+                else:
+                    # 未中：亏损
+                    total_profit -= current_bet
+                    consecutive_losses += 1
+                    consecutive_wins = 0
+                    max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+                    
+                    # 检查是否触发止损
+                    if consecutive_losses >= stop_loss_threshold:
+                        is_betting = False  # 暂停投注
+                        paused_count = 0  # 开始计数暂停期数
+                
+                # 更新最大单期投入
+                max_bet = max(max_bet, current_bet)
+            else:
+                # 暂停投注状态
+                paused_periods += 1
+                paused_count += 1
+                
+                # 恢复投注的两个条件（满足任一即可）
+                if hit:
+                    # 条件1：如果这期会命中，恢复投注
+                    is_betting = True
+                    consecutive_losses = 0
+                    consecutive_wins = 0
+                    paused_count = 0
+                elif paused_count >= max_paused_streak:
+                    # 条件2：连续暂停8期后，第9期自动恢复投注
+                    is_betting = True
+                    consecutive_losses = 0
+                    consecutive_wins = 0
+                    paused_count = 0
+            
+            # 记录余额历史
+            balance_history.append(total_profit)
+            
+            # 计算最大回撤
+            peak_balance = max(peak_balance, total_profit)
+            drawdown = peak_balance - total_profit
+            max_drawdown = max(max_drawdown, drawdown)
+        
+        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
+        hit_rate = (hits / actual_betting_periods * 100) if actual_betting_periods > 0 else 0
+        
+        return {
+            'total_profit': total_profit,
+            'total_investment': total_investment,
+            'roi': roi,
+            'hit_rate': hit_rate,
+            'hits': hits,
+            'max_consecutive_losses': max_consecutive_losses,
+            'max_consecutive_wins': max_consecutive_wins,
+            'max_bet': max_bet,
+            'max_drawdown': max_drawdown,
+            'balance_history': balance_history,
+            'actual_betting_periods': actual_betting_periods,
+            'paused_periods': paused_periods
         }
     
     def _calculate_top3_betting(self, hit_records, predictions_top5, actuals):
@@ -4480,70 +4770,6 @@ class LuckyNumberGUI:
             'max_drawdown': max_drawdown,
             'balance_history': balance_history,
             'description': f'凯利公式动态调整，最优比例{kelly_fraction*100:.1f}%'
-        }
-    
-    def _calculate_stop_loss_betting(self, hit_records):
-        """止损止盈策略 - 达到目标或亏损时停止"""
-        total_profit = 0
-        total_investment = 0
-        consecutive_losses = 0
-        max_consecutive_losses = 0
-        balance_history = [0]
-        max_bet = 20
-        peak_balance = 0
-        max_drawdown = 0
-        
-        stop_loss_threshold = -100  # 止损线：亏损100元
-        take_profit_threshold = 200  # 止盈线：盈利200元
-        
-        active = True
-        periods_paused = 0
-        
-        for i, hit in enumerate(hit_records):
-            if not active:
-                # 暂停投注期
-                periods_paused += 1
-                if periods_paused >= 5:  # 暂停5期后重新开始
-                    active = True
-                    periods_paused = 0
-                    total_profit = 0  # 重置收益
-                continue
-            
-            bet = 20
-            total_investment += bet
-            
-            if hit:
-                profit = 25
-                total_profit += profit
-                consecutive_losses = 0
-            else:
-                total_profit -= bet
-                consecutive_losses += 1
-                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
-            
-            # 检查止损止盈
-            if total_profit <= stop_loss_threshold or total_profit >= take_profit_threshold:
-                active = False
-                periods_paused = 0
-            
-            balance_history.append(total_profit)
-            peak_balance = max(peak_balance, total_profit)
-            drawdown = peak_balance - total_profit
-            max_drawdown = max(max_drawdown, drawdown)
-        
-        roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
-        hit_rate = sum(hit_records) / len(hit_records) if len(hit_records) > 0 else 0
-        
-        return {
-            'total_profit': total_profit,
-            'total_investment': total_investment,
-            'roi': roi,
-            'hit_rate': hit_rate,
-            'max_consecutive_losses': max_consecutive_losses,
-            'max_bet': max_bet,
-            'max_drawdown': max_drawdown,
-            'balance_history': balance_history,
-            'description': '止损-100元/止盈+200元，暂停5期后重启'
         }
     
     def _calculate_adaptive_betting(self, hit_records, predictions_top5, actuals):
