@@ -3112,8 +3112,8 @@ class LuckyNumberGUI:
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
             self.log_output(f"分析期数: 最近200期\n\n")
             
-            # 100
-            test_periods = min(100, len(df))
+            # 200
+            test_periods = min(200, len(df))
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*70}\n")
@@ -3486,8 +3486,8 @@ class LuckyNumberGUI:
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
             self.log_output(f"最新期数: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号 ({df.iloc[-1]['animal']})\n\n")
             
-            # 分析最近100期
-            test_periods = min(100, len(df))
+            # 分析最近200期
+            test_periods = min(200, len(df))
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
@@ -3703,7 +3703,7 @@ class LuckyNumberGUI:
             
             # 详细倍投收益记录（使用最佳策略）
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第五步：最近100期倍投收益详情（{best_name}）\n")
+            self.log_output(f"第五步：最近200期倍投收益详情（{best_name}）\n")
             self.log_output(f"{'='*80}\n\n")
             self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10}\n")
             self.log_output("-" * 110 + "\n")
@@ -3906,8 +3906,8 @@ class LuckyNumberGUI:
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
             self.log_output(f"最新期数: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号 ({df.iloc[-1]['animal']})\n\n")
             
-            # 分析最近100期
-            test_periods = min(100, len(df))
+            # 分析最近200期
+            test_periods = min(200, len(df))
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
@@ -4080,8 +4080,10 @@ class LuckyNumberGUI:
             
             self.log_output(f"【止损策略规则】\n")
             self.log_output(f"  • 连续3期投注失败后，自动暂停投注\n")
-            self.log_output(f"  • 暂停期间不投注，等待下次命中信号\n")
-            self.log_output(f"  • 出现命中信号时，恢复正常投注\n")
+            self.log_output(f"  • 暂停期间不投注，等待恢复条件\n")
+            self.log_output(f"  • 恢复条件（满足任一即可）：\n")
+            self.log_output(f"    1. 预测命中时，立即恢复投注，倍数重置为1倍\n")
+            self.log_output(f"    2. 触发止损后连续错误5期，自动恢复投注，继续原倍数逻辑\n")
             self.log_output(f"  • 恢复后继续使用斐波那契倍投策略\n\n")
             
             self.log_output(f"【止损策略效果】\n")
@@ -4174,18 +4176,152 @@ class LuckyNumberGUI:
             self.log_output("  • 斐波那契倍投：适合平衡型投资者，风险和收益相对均衡\n")
             self.log_output("  • 马丁格尔倍投：高风险高收益，需要较大资金池，不推荐新手使用\n\n")
             
-            # 详细倍投收益记录（使用最佳策略）
+            # 📅 月度收益分析
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第四步：最近100期倍投收益详情（{best_name}）\n")
+            self.log_output("📅 各策略最近5个月收益对比\n")
             self.log_output(f"{'='*80}\n\n")
-            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP4':<30} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10}\n")
-            self.log_output("-" * 105 + "\n")
             
-            # 使用最佳策略重新计算每期详情
-            best_strategy_type = best_strategy[0]
-            best_multiplier_func = strategies[best_strategy_type].get('multiplier_func')
+            # 按月份分组统计
+            from datetime import datetime
+            from collections import defaultdict
+            
+            # 为每个策略计算月度收益
+            monthly_stats = defaultdict(lambda: defaultdict(lambda: {'profit': 0, 'investment': 0, 'hits': 0, 'total': 0}))
+            
+            for strategy_result in strategy_results:
+                strategy_name = strategy_result['strategy_name']
+                strategy_func = betting_strategies[strategy_result['strategy_id']]['func']
+                
+                # 重新计算详细的每期数据以获取月份信息
+                consecutive_losses = 0
+                paused_periods = 0
+                
+                for i in range(len(hit_records)):
+                    idx = start_idx + i
+                    actual_row = df.iloc[idx]
+                    date_str = actual_row['date']
+                    
+                    # 解析日期，提取年月
+                    try:
+                        # 尝试不同的日期格式
+                        for fmt in ['%Y/%m/%d', '%Y-%m-%d', '%Y年%m月%d日']:
+                            try:
+                                date_obj = datetime.strptime(date_str, fmt)
+                                break
+                            except:
+                                continue
+                        else:
+                            # 如果都失败，跳过
+                            continue
+                        
+                        year_month = date_obj.strftime('%Y年%m月')
+                    except:
+                        continue
+                    
+                    hit = hit_records[i]
+                    
+                    # 检查是否在暂停期
+                    if paused_periods > 0:
+                        paused_periods -= 1
+                        if hit:
+                            paused_periods = 0  # 命中后恢复
+                        continue
+                    
+                    # 计算投注金额
+                    multiplier = strategy_func(consecutive_losses)
+                    bet_amount = 16 * multiplier
+                    
+                    monthly_stats[strategy_name][year_month]['total'] += 1
+                    monthly_stats[strategy_name][year_month]['investment'] += bet_amount
+                    
+                    if hit:
+                        monthly_stats[strategy_name][year_month]['hits'] += 1
+                        monthly_stats[strategy_name][year_month]['profit'] += (45 * multiplier - bet_amount)
+                        consecutive_losses = 0
+                    else:
+                        monthly_stats[strategy_name][year_month]['profit'] -= bet_amount
+                        consecutive_losses += 1
+                        
+                        # 检查止损
+                        if consecutive_losses >= 3:
+                            paused_periods = 8
+            
+            # 获取所有月份并排序（最近5个月）
+            all_months = set()
+            for strategy_data in monthly_stats.values():
+                all_months.update(strategy_data.keys())
+            
+            sorted_months = sorted(all_months, reverse=True)[:5]  # 最近5个月
+            sorted_months.reverse()  # 从旧到新排序
+            
+            if sorted_months:
+                # 显示表头
+                self.log_output(f"{'策略':<12} ")
+                for month in sorted_months:
+                    self.log_output(f"{month:<15} ")
+                self.log_output("累计\n")
+                self.log_output("-" * (12 + 15 * len(sorted_months) + 10) + "\n")
+                
+                # 显示每个策略的月度收益
+                for result in strategy_results:
+                    strategy_name = result['strategy_name']
+                    self.log_output(f"{strategy_name:<12} ")
+                    
+                    total_monthly_profit = 0
+                    for month in sorted_months:
+                        month_data = monthly_stats[strategy_name][month]
+                        profit = month_data['profit']
+                        total_monthly_profit += profit
+                        
+                        if month_data['total'] > 0:
+                            hit_rate = month_data['hits'] / month_data['total'] * 100
+                            self.log_output(f"{profit:>+6.0f}元({hit_rate:.0f}%)  ")
+                        else:
+                            self.log_output(f"    -        ")
+                    
+                    self.log_output(f"{total_monthly_profit:>+7.0f}元\n")
+                
+                self.log_output("\n")
+                
+                # 月度统计说明
+                self.log_output("说明：括号内为当月命中率\n")
+                
+                # 找出每个月表现最好的策略
+                self.log_output("\n【月度最佳策略】\n")
+                for month in sorted_months:
+                    best_month_strategy = None
+                    best_month_profit = float('-inf')
+                    
+                    for result in strategy_results:
+                        strategy_name = result['strategy_name']
+                        month_profit = monthly_stats[strategy_name][month]['profit']
+                        if month_profit > best_month_profit:
+                            best_month_profit = month_profit
+                            best_month_strategy = strategy_name
+                    
+                    if best_month_strategy and monthly_stats[best_month_strategy][month]['total'] > 0:
+                        month_data = monthly_stats[best_month_strategy][month]
+                        self.log_output(f"  {month}: {best_month_strategy} ({best_month_profit:+.0f}元, 命中率{month_data['hits']}/{month_data['total']}={month_data['hits']/month_data['total']*100:.1f}%)\n")
+                
+                self.log_output("\n")
+            else:
+                self.log_output("⚠️ 无法解析日期数据，跳过月度分析\n\n")
+            
+            # 详细倍投收益记录（使用马丁格尔倍投 + 3期止损策略）
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"第四步：最近200期倍投收益详情（马丁格尔倍投 + 3期止损）\n")
+            self.log_output(f"{'='*80}\n\n")
+            self.log_output(f"说明：采用马丁格尔倍投策略，连续3期失败后暂停投注\n")
+            self.log_output(f"      恢复规则：命中后重置倍数，自动恢复（连续错5期）后继续原倍数\n\n")
+            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP4':<30} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'状态':<10}\n")
+            self.log_output("-" * 120 + "\n")
+            
+            # 使用马丁格尔倍投 + 3期止损策略
+            martingale_multiplier_func = lambda x: 1 if x == 0 else min(2 ** x, 64)  # 马丁格尔倍投，最大64倍
             cumulative_profit = 0
             consecutive_losses = 0
+            paused_periods = 0  # 已暂停的期数
+            is_paused = False  # 是否处于暂停状态
             
             for i in range(len(hit_records)):
                 idx = start_idx + i
@@ -4195,8 +4331,35 @@ class LuckyNumberGUI:
                 predicted_top4 = predictions_top4[i]
                 hit = hit_records[i]
                 
+                # 检查是否在暂停期
+                if is_paused:
+                    if hit:
+                        # 命中则恢复投注，重置倍数
+                        is_paused = False
+                        paused_periods = 0
+                        consecutive_losses = 0
+                        status_str = "[RESUME]恢复"
+                    else:
+                        # 这期没中，计数连续失败期数
+                        paused_periods += 1
+                        if paused_periods >= 5:
+                            # 触发止损后连续错误5期，自动恢复
+                            # 保持原来的consecutive_losses，继续原倍数逻辑
+                            is_paused = False
+                            paused_periods = 0
+                            # 不重置consecutive_losses，让它继续原来的倍数
+                            status_str = "[AUTO]自动恢复"
+                        else:
+                            status_str = f"[PAUSE]失败{paused_periods}"
+                    
+                    # 暂停期间不投注
+                    top4_str = ','.join(predicted_top4)
+                    hit_str = "✓中" if hit else "✗失"
+                    self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {'0':<6} {'0':<8} {hit_str:<8} {'-':<10} {cumulative_profit:>+10.2f} {status_str:<10}\n")
+                    continue
+                
                 # 计算当期倍数和投注金额
-                multiplier = best_multiplier_func(consecutive_losses) if best_multiplier_func else 1
+                multiplier = martingale_multiplier_func(consecutive_losses)
                 current_bet = 16 * multiplier
                 
                 # 计算当期收益
@@ -4206,25 +4369,51 @@ class LuckyNumberGUI:
                     consecutive_losses = 0
                     status = "✓中"
                     profit_str = f"+{period_profit:.2f}"
+                    status_str = "正常"
                 else:
                     period_profit = -current_bet
                     cumulative_profit += period_profit
                     consecutive_losses += 1
                     status = "✗失"
                     profit_str = f"{period_profit:.2f}"
+                    
+                    # 检查是否触发止损
+                    if consecutive_losses >= 3:
+                        is_paused = True
+                        paused_periods = 0
+                        status_str = "[STOP]触发止损"
+                    else:
+                        status_str = f"连败{consecutive_losses}"
                 
                 top4_str = ','.join(predicted_top4)
-                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {current_bet:<8.0f} {status:<6} {profit_str:<10} {cumulative_profit:>+10.2f}\n")
+                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {multiplier:<6.0f} {current_bet:<8.0f} {status:<8} {profit_str:<10} {cumulative_profit:>+10.2f} {status_str:<10}\n")
             
-            self.log_output("-" * 100 + "\n")
-            self.log_output(f"\n统计: 命中{hits}/{len(hit_records)}期 = {hit_rate*100:.2f}%\n")
-            self.log_output(f"最终累计收益: {cumulative_profit:+.2f}元\n")
-            self.log_output(f"总投入: {best_result['total_investment']:.2f}元\n")
-            self.log_output(f"ROI: {best_result['roi']:+.2f}%\n\n")
+            # 计算马丁格尔倍投策略的实际统计数据
+            martingale_result = self._calculate_stop_loss_betting(
+                hit_records,
+                stop_loss_threshold=3,
+                base_bet=16,
+                win_amount=45,
+                multiplier_func=martingale_multiplier_func
+            )
+            
+            self.log_output("-" * 120 + "\n")
+            self.log_output(f"\n【马丁格尔倍投 + 3期止损策略统计】\n")
+            self.log_output(f"  测试期数: {len(hit_records)}期\n")
+            self.log_output(f"  实际投注期数: {martingale_result['actual_betting_periods']}期\n")
+            self.log_output(f"  暂停期数: {martingale_result['paused_periods']}期 ({martingale_result['paused_periods']/len(hit_records)*100:.1f}%)\n")
+            self.log_output(f"  命中次数: {martingale_result['hits']}次\n")
+            self.log_output(f"  命中率: {martingale_result['hit_rate']:.2f}%\n")
+            self.log_output(f"  总投入: {martingale_result['total_investment']:.2f}元\n")
+            self.log_output(f"  总收益: {martingale_result['total_profit']:+.2f}元\n")
+            self.log_output(f"  ROI: {martingale_result['roi']:+.2f}%\n")
+            self.log_output(f"  最大连败: {martingale_result['max_consecutive_losses']}期\n")
+            self.log_output(f"  最大单注: {martingale_result['max_bet']:.0f}元\n")
+            self.log_output(f"  最大回撤: {martingale_result['max_drawdown']:.2f}元\n\n")
             
             # 预测下一期
             self.log_output(f"{'='*80}\n")
-            self.log_output("第五步：下期投注建议\n")
+            self.log_output("第五步：下期投注建议（马丁格尔倍投 + 3期止损）\n")
             self.log_output(f"{'='*80}\n\n")
             
             # 获取下期预测 - 使用集成预测器
@@ -4240,59 +4429,47 @@ class LuckyNumberGUI:
                 else:
                     break
             
-            # 判断是否应该暂停投注（止损策略）
-            should_pause_betting = consecutive_losses_recent >= 4
+            # 判断是否应该暂停投注（3期止损策略）
+            should_pause_betting = consecutive_losses_recent >= 3
             
-            # 根据最佳策略给出建议倍数
-            if best_name == "止损优化策略":
-                if should_pause_betting:
-                    self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
-                    self.log_output(f"选择模型: {next_result['selected_model']}\n")
-                    self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-                    self.log_output(f"推荐策略: {best_name}\n")
-                    self.log_output(f"⚠️  【止损警告】连续{consecutive_losses_recent}期失败，已触发止损阈值\n")
-                    self.log_output(f"🛡️ 投注建议: 暂停投注，等待下次命中信号\n")
-                    self.log_output(f"📊 恢复条件: 当预测命中时，自动恢复投注\n\n")
-                else:
-                    if best_multiplier_func:
-                        recommended_multiplier = best_multiplier_func(consecutive_losses_recent)
-                    else:
-                        recommended_multiplier = 1
-                    recommended_bet = 16 * recommended_multiplier
-                    
-                    self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
-                    self.log_output(f"选择模型: {next_result['selected_model']}\n")
-                    self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-                    self.log_output(f"推荐策略: {best_name}\n")
-                    self.log_output(f"✅ 投注状态: 正常投注\n")
-                    self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
-                    self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)\n")
-                    self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
-                    self.log_output(f"如果未中: -{recommended_bet:.2f}元\n")
-                    if consecutive_losses_recent >= 3:
-                        self.log_output(f"⚠️  注意: 已连续{consecutive_losses_recent}期失败，再失败1期将触发止损\n")
-                    self.log_output("\n")
+            # 使用马丁格尔倍投策略
+            if should_pause_betting:
+                self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
+                self.log_output(f"选择模型: {next_result['selected_model']}\n")
+                self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
+                self.log_output(f"推荐策略: 马丁格尔倍投 + 3期止损\n")
+                self.log_output(f"⚠️  【止损警告】连续{consecutive_losses_recent}期失败，已触发止损阈值（3期）\n")
+                self.log_output(f"🛡️ 投注建议: 暂停投注，等待恢复条件\n")
+                self.log_output(f"📊 恢复条件（满足任一即可）: \n")
+                self.log_output(f"   1. 当预测命中时，立即恢复投注，倍数重置为1倍\n")
+                self.log_output(f"   2. 触发止损后连续错误5期，自动恢复投注，继续原倍数逻辑\n\n")
             else:
-                # 非止损策略
-                if best_multiplier_func:
-                    recommended_multiplier = best_multiplier_func(consecutive_losses_recent)
-                else:
-                    recommended_multiplier = 1
+                # 计算马丁格尔倍数
+                recommended_multiplier = martingale_multiplier_func(consecutive_losses_recent)
                 recommended_bet = 16 * recommended_multiplier
                 
                 self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
                 self.log_output(f"选择模型: {next_result['selected_model']}\n")
                 self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-                self.log_output(f"推荐策略: {best_name}\n")
-                self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
-                self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/4:.2f}元)\n")
-                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
-                self.log_output(f"如果未中: -{recommended_bet:.2f}元\n\n")
+                self.log_output(f"推荐策略: 马丁格尔倍投 + 3期止损\n")
+                self.log_output(f"✅ 投注状态: 正常投注\n")
+                self.log_output(f"马丁格尔倍数: {recommended_multiplier}倍 (2^{consecutive_losses_recent})\n")
+                self.log_output(f"建议投注: {recommended_bet:.0f}元 (每个生肖{recommended_bet/4:.0f}元)\n")
+                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.0f}元\n")
+                self.log_output(f"如果未中: -{recommended_bet:.0f}元\n")
+                if consecutive_losses_recent >= 1:
+                    self.log_output(f"⚠️  注意: 已连续{consecutive_losses_recent}期失败，再失败{3-consecutive_losses_recent}期将触发止损\n")
+                self.log_output(f"\n💡 马丁格尔策略说明:\n")
+                self.log_output(f"   • 连败1期 → 2倍投注 (32元)\n")
+                self.log_output(f"   • 连败2期 → 4倍投注 (64元)\n")
+                self.log_output(f"   • 连败3期 → 触发止损，暂停投注\n")
+                self.log_output(f"   • 命中恢复 → 倍数重置为1倍\n")
+                self.log_output(f"   • 自动恢复 → 继续原倍数（如4倍止损，恢复后8倍）\n\n")
             
             # 在结果文本框显示汇总前，保存暂停状态
-            should_pause_for_display = consecutive_losses_recent >= 4
-            recommended_bet_display = 16 * (best_multiplier_func(consecutive_losses_recent) if best_multiplier_func and not should_pause_for_display else 1) if not should_pause_for_display else 0
-            recommended_multiplier_display = best_multiplier_func(consecutive_losses_recent) if best_multiplier_func and not should_pause_for_display else 1
+            should_pause_for_display = consecutive_losses_recent >= 3
+            recommended_bet_display = 16 * martingale_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 0
+            recommended_multiplier_display = martingale_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 1
             
             # 在结果文本框显示汇总
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
@@ -4314,37 +4491,34 @@ class LuckyNumberGUI:
                 result_display += f"│  🛡️ 止损优化策略      ROI:{stop_loss_result['roi']:>+7.2f}% 收益:{stop_loss_result['total_profit']:>+8.2f}元 最大投{stop_loss_result['max_bet']:>6.0f}元│\n"
             
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  🏆 最优策略: {best_name:<56}│\n"
+            result_display += f"│  🏆 详细分析策略: 马丁格尔倍投 + 3期止损                                  │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  总投入: {best_result['total_investment']:.2f}元                                                │\n"
-            result_display += f"│  总收益: {best_result['total_profit']:>+9.2f}元                                             │\n"
-            result_display += f"│  投资回报率: {best_result['roi']:>+6.2f}%                                                │\n"
-            result_display += f"│  最大连亏: {best_result['max_consecutive_losses']}期                                                │\n"
-            
-            # 如果是止损策略，显示额外信息
-            if best_name == "止损优化策略" and 'actual_betting_periods' in best_result:
-                result_display += f"│  实际投注期数: {best_result['actual_betting_periods']}期 (暂停{best_result['paused_periods']}期)                               │\n"
-            
-            result_display += f"│  最大单期投入: {best_result['max_bet']:.2f}元                                           │\n"
+            result_display += f"│  总投入: {martingale_result['total_investment']:.2f}元                                                │\n"
+            result_display += f"│  总收益: {martingale_result['total_profit']:>+9.2f}元                                             │\n"
+            result_display += f"│  投资回报率: {martingale_result['roi']:>+6.2f}%                                                │\n"
+            result_display += f"│  最大连亏: {martingale_result['max_consecutive_losses']}期                                                │\n"
+            result_display += f"│  实际投注期数: {martingale_result['actual_betting_periods']}期 (暂停{martingale_result['paused_periods']}期)                               │\n"
+            result_display += f"│  最大单期投入: {martingale_result['max_bet']:.0f}元                                           │\n"
+            result_display += f"│  最大回撤: {martingale_result['max_drawdown']:.0f}元                                           │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += "│  🎯 下期投注建议                                                        │\n"
+            result_display += "│  🎯 下期投注建议（马丁格尔倍投 + 3期止损）                               │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  预测TOP4: {', '.join(next_top4):<56}│\n"
             result_display += f"│  选择模型: {next_result['selected_model']:<56}│\n"
             result_display += f"│  最近连亏: {consecutive_losses_recent}期                                                        │\n"
-            result_display += f"│  推荐策略: {best_name:<56}│\n"
+            result_display += f"│  推荐策略: 马丁格尔倍投 + 3期止损                                        │\n"
             
             # 根据止损状态显示不同建议
-            if best_name == "止损优化策略" and should_pause_for_display:
-                result_display += "│  ⚠️  止损状态: 暂停投注（连续4期失败）                                   │\n"
-                result_display += "│  🛡️ 投注建议: 等待下次命中信号                                         │\n"
+            if should_pause_for_display:
+                result_display += "│  ⚠️  止损状态: 暂停投注（连续3期失败）                                   │\n"
+                result_display += "│  🛡️ 投注建议: 等待命中（重置倍数）或连续错5期（继续倍数）后自动恢复            │\n"
             else:
-                result_display += f"│  建议倍数: {recommended_multiplier_display}倍                                                        │\n"
-                result_display += f"│  建议投注: {recommended_bet_display:.2f}元 (每个生肖{recommended_bet_display/4:.2f}元)                        │\n"
-                result_display += f"│  如果命中: +{45*recommended_multiplier_display - recommended_bet_display:.2f}元 ✓                                       │\n"
-                result_display += f"│  如果未中: -{recommended_bet_display:.2f}元 ✗                                              │\n"
-                if best_name == "止损优化策略" and consecutive_losses_recent >= 3:
-                    result_display += "│  ⚠️  警告: 接近止损阈值，请谨慎投注                                     │\n"
+                result_display += f"│  马丁格尔倍数: {recommended_multiplier_display}倍 (2^{consecutive_losses_recent})                                       │\n"
+                result_display += f"│  建议投注: {recommended_bet_display:.0f}元 (每个生肖{recommended_bet_display/4:.0f}元)                        │\n"
+                result_display += f"│  如果命中: +{45*recommended_multiplier_display - recommended_bet_display:.0f}元 ✓                                       │\n"
+                result_display += f"│  如果未中: -{recommended_bet_display:.0f}元 ✗                                              │\n"
+                if consecutive_losses_recent >= 1:
+                    result_display += f"│  ⚠️  警告: 已连败{consecutive_losses_recent}期，再失败{3-consecutive_losses_recent}期触发止损                              │\n"
             
             result_display += "└────────────────────────────────────────────────────────────────────────┘\n"
             
@@ -4445,8 +4619,8 @@ class LuckyNumberGUI:
         策略规则：
             1. 连续失败3期时，停止投注
             2. 暂停后恢复条件（满足任一即可）：
-               - 预测命中时，立即恢复投注
-               - 连续暂停8期后，第9期自动恢复投注
+               - 预测命中时，立即恢复投注，倍数重置为1倍
+               - 触发止损后连续错误5期，自动恢复投注，继续原倍数逻辑
         
         Returns:
             包含各种统计指标的字典
@@ -4468,7 +4642,7 @@ class LuckyNumberGUI:
         paused_count = 0  # 当前连续暂停期数计数器
         actual_betting_periods = 0  # 实际投注期数
         hits = 0  # 命中次数
-        max_paused_streak = 8  # 最大连续暂停期数，超过后自动恢复
+        max_paused_streak = 5  # 触发止损后连续错误期数，超过后自动恢复
         
         # 默认斐波那契数列用于动态倍投
         def fibonacci_multiplier(losses):
@@ -4516,21 +4690,23 @@ class LuckyNumberGUI:
             else:
                 # 暂停投注状态
                 paused_periods += 1
-                paused_count += 1
                 
                 # 恢复投注的两个条件（满足任一即可）
                 if hit:
-                    # 条件1：如果这期会命中，恢复投注
+                    # 条件1：如果这期会命中，立即恢复投注，重置倍数
                     is_betting = True
                     consecutive_losses = 0
                     consecutive_wins = 0
                     paused_count = 0
-                elif paused_count >= max_paused_streak:
-                    # 条件2：连续暂停8期后，第9期自动恢复投注
-                    is_betting = True
-                    consecutive_losses = 0
-                    consecutive_wins = 0
-                    paused_count = 0
+                else:
+                    # 这期没中，计数连续失败期数
+                    paused_count += 1
+                    if paused_count >= max_paused_streak:
+                        # 条件2：自动恢复投注，保持原倍数逻辑
+                        is_betting = True
+                        # 不重置consecutive_losses，让它继续原来的倍数
+                        consecutive_wins = 0
+                        paused_count = 0
             
             # 记录余额历史
             balance_history.append(total_profit)
