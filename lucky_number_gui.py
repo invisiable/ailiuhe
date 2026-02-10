@@ -466,7 +466,7 @@ class LuckyNumberGUI:
         
         ttk.Label(
             pred_frame,
-            text="← 生肖TOP4平衡：每期16元，命中奖45元，平衡投注 🎯",
+            text="← 生肖TOP4平衡：每期16元，命中奖47元，平衡投注 🎯",
             font=('', 9, 'bold'),
             foreground="blue"
         ).grid(row=4, column=1, sticky=tk.W, padx=5)
@@ -2981,7 +2981,7 @@ class LuckyNumberGUI:
                 marker = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
                 result_display += f"│   {marker} {zodiac:<50} │\n"
             result_display += "│   • 投注成本: 12元 (每个生肖4元)                        │\n"
-            result_display += "│   • 命中收益: +33元 (45元-12元)                         │\n"
+            result_display += "│   • 命中收益: +35元 (47元-12元)                         │\n"
             result_display += "│   • 预期命中率: 40-45% (基于最近100期验证)             │\n"
             result_display += "│                                                         │\n"
             result_display += "├─────────────────────────────────────────────────────────┤\n"
@@ -2992,7 +2992,7 @@ class LuckyNumberGUI:
                 marker = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "🏅"
                 result_display += f"│   {marker} {zodiac:<50} │\n"
             result_display += "│   • 投注成本: 16元 (每个生肖4元)                        │\n"
-            result_display += "│   • 命中收益: +29元 (45元-16元)                         │\n"
+            result_display += "│   • 命中收益: +31元 (47元-16元)                         │\n"
             result_display += "│   • 预期命中率: 50% (基于最近100期验证)                 │\n"
             result_display += "│                                                         │\n"
             result_display += "├─────────────────────────────────────────────────────────┤\n"
@@ -3276,7 +3276,7 @@ class LuckyNumberGUI:
                 self.log_output(f"  ⚠ 采用渐进式倍投策略恢复亏损\n")
                 self.log_output(f"  规则: 每连续亏损1期，倍数+1\n")
                 # 计算需要多少倍才能覆盖亏损并盈利
-                min_multiplier_to_recover = int(total_loss / 30) + 1  # 30是命中后的净收益(45-15)
+                min_multiplier_to_recover = int(total_loss / 32) + 1  # 32是命中后的净收益(47-15)
                 self.log_output(f"  理论覆盖亏损所需倍数: {min_multiplier_to_recover}倍\n")
                 self.log_output(f"  当前推荐倍数: {recommendation['recommended_multiplier']}倍（保守策略）\n")
                 
@@ -3491,13 +3491,13 @@ class LuckyNumberGUI:
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"投注规则说明（20倍基本倍投）\n")
+            self.log_output(f"投注规则说明（1倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"• 基本倍投: 20倍\n")
-            self.log_output(f"• 每期投入: 400元 (每个生肖80元 × 5个生肖)\n")
-            self.log_output(f"• 命中奖励: 940元 (47元 × 20倍)\n")
-            self.log_output(f"• 净利润: 940 - 400 = 540元\n")
-            self.log_output(f"• 未命中亏损: -400元\n")
+            self.log_output(f"• 基本倍投: 1倍\n")
+            self.log_output(f"• 每期投入: 20元 (每个生肖4元 × 5个生肖)\n")
+            self.log_output(f"• 命中奖励: 47元 (47元 × 1倍)\n")
+            self.log_output(f"• 净利润: 47 - 20 = 27元\n")
+            self.log_output(f"• 未命中亏损: -20元\n")
             self.log_output(f"• 使用模型: v10.0 简化智能选择器 (52%成功率)\n\n")
             
             self.log_output(f"{'='*80}\n")
@@ -3539,10 +3539,10 @@ class LuckyNumberGUI:
             hit_rate = hits / len(hit_records)
             
             self.log_output(f"{'='*80}\n")
-            self.log_output("第二步：基础投注策略分析（每期400元固定投注，20倍）\n")
+            self.log_output("第二步：基础投注策略分析（每期20元固定投注，1倍）\n")
             self.log_output(f"{'='*80}\n\n")
             
-            # 基础策略：固定投注（20倍）
+            # 基础策略：固定投注（1倍）
             base_profit = 0
             monthly_profits = {}  # 存储每月收益
             
@@ -3562,23 +3562,23 @@ class LuckyNumberGUI:
                     monthly_profits[month_key] = 0
                 
                 if hit:
-                    period_profit = 540  # 净利润 (940-400)
+                    period_profit = 27  # 净利润 (47-20)
                 else:
-                    period_profit = -400  # 亏损
+                    period_profit = -20  # 亏损
                 
                 base_profit += period_profit
                 monthly_profits[month_key] += period_profit
             
-            base_roi = (base_profit / (400 * len(hit_records))) * 100
+            base_roi = (base_profit / (20 * len(hit_records))) * 100
             
             self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
-            self.log_output(f"总投入: {400 * len(hit_records)}元\n")
+            self.log_output(f"总投入: {20 * len(hit_records)}元\n")
             self.log_output(f"总收益: {base_profit:+.2f}元\n")
             self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
             
             # 输出每月收益统计
             self.log_output(f"{'='*80}\n")
-            self.log_output("📊 每月收益统计（20倍基本倍投）\n")
+            self.log_output("📊 每月收益统计（1倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
             for month in sorted(monthly_profits.keys()):
                 profit = monthly_profits[month]
@@ -3620,16 +3620,16 @@ class LuckyNumberGUI:
             self.log_output(f"{'='*80}\n\n")
             
             strategies = {
+                'fibonacci': {'name': '🏆斐波那契倍投(最优)', 'multiplier_func': self._fibonacci_multiplier, 'type': 'multiplier'},
                 'base': {'name': '固定投注TOP5', 'multiplier_func': lambda x: 1, 'type': 'multiplier'},
+                'stop_loss': {'name': '止损策略(2期止损)', 'type': 'stop_loss'},
                 'martingale': {'name': '马丁格尔倍投', 'multiplier_func': lambda x: 2**x if x <= 5 else 32, 'type': 'multiplier'},
-                'fibonacci': {'name': '斐波那契倍投', 'multiplier_func': self._fibonacci_multiplier, 'type': 'multiplier'},
                 'dalembert': {'name': '达朗贝尔倍投', 'multiplier_func': lambda x: 1 + x if x <= 10 else 11, 'type': 'multiplier'},
                 'conservative': {'name': '保守倍投', 'multiplier_func': lambda x: 1 + x*0.5 if x <= 6 else 4, 'type': 'multiplier'},
                 'top3_only': {'name': 'TOP3精准投注', 'type': 'top3'},
                 'top2_focus': {'name': 'TOP2集中投注', 'type': 'top2'},
                 'weighted': {'name': '加权分配投注', 'type': 'weighted'},
                 'kelly': {'name': '凯利公式优化', 'type': 'kelly'},
-                'stop_loss': {'name': '止损止盈策略', 'type': 'stop_loss'},
                 'adaptive': {'name': '自适应智能投注', 'type': 'adaptive'},
             }
             
@@ -3643,7 +3643,7 @@ class LuckyNumberGUI:
                             hit_records, 
                             strategy_info['multiplier_func'],
                             base_bet=20,
-                            win_amount=45
+                            win_amount=47
                         )
                     elif strategy_info.get('type') == 'top3':
                         # TOP3精准投注（只买前3个生肖）
@@ -3685,9 +3685,9 @@ class LuckyNumberGUI:
                     self.log_output(f"  策略说明: {result['description']}\n")
                 self.log_output("\n")
             
-            # 使用斐波那契投注策略
+            # 使用纯斐波那契倍投（收益最优）
             best_strategy = ('fibonacci', {
-                'name': '斐波那契倍投',
+                'name': '🏆斐波那契倍投(最优)',
                 'result': strategy_results['fibonacci']['result']
             })
             best_name = best_strategy[1]['name']
@@ -3741,9 +3741,9 @@ class LuckyNumberGUI:
                 # 计算当期收益
                 if hit:
                     if use_multiplier:
-                        period_profit = 45 * multiplier - current_bet
+                        period_profit = 47 * multiplier - current_bet
                     else:
-                        period_profit = 45 - current_bet
+                        period_profit = 47 - current_bet
                     cumulative_profit += period_profit
                     consecutive_losses_detail = 0
                     status = "✓中"
@@ -3805,7 +3805,7 @@ class LuckyNumberGUI:
             if strategies[best_strategy_type].get('type') == 'multiplier':
                 self.log_output(f"建议倍数: {recommended_multiplier}倍\n")
                 self.log_output(f"建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/5:.2f}元)\n")
-                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元\n")
+                self.log_output(f"如果命中: +{47*recommended_multiplier - recommended_bet:.2f}元\n")
             elif strategies[best_strategy_type].get('type') == 'top3':
                 self.log_output(f"建议投注: 12元 (TOP3，每个生肖4元)\n")
                 self.log_output(f"如果命中: +33元\n")
@@ -3854,7 +3854,7 @@ class LuckyNumberGUI:
             if strategies[best_strategy_type].get('type') == 'multiplier':
                 result_display += f"│  建议倍数: {recommended_multiplier}倍                                                        │\n"
                 result_display += f"│  建议投注: {recommended_bet:.2f}元 (每个生肖{recommended_bet/5:.2f}元)                        │\n"
-                result_display += f"│  如果命中: +{45*recommended_multiplier - recommended_bet:.2f}元 ✓                                       │\n"
+                result_display += f"│  如果命中: +{47*recommended_multiplier - recommended_bet:.2f}元 ✓                                       │\n"
             elif strategies[best_strategy_type].get('type') == 'top3':
                 result_display += f"│  建议投注: 12元 (TOP3精准，每个生肖4元)                              │\n"
                 result_display += f"│  如果命中: +33元 ✓                                                    │\n"
@@ -3911,13 +3911,13 @@ class LuckyNumberGUI:
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"投注规则说明（20倍基本倍投）\n")
+            self.log_output(f"投注规则说明（1倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"• 基本倍投: 20倍\n")
-            self.log_output(f"• 每期投入: 320元 (每个生肖80元 × 4个生肖)\n")
-            self.log_output(f"• 命中奖励: 940元 (47元 × 20倍)\n")
-            self.log_output(f"• 净利润: 940 - 320 = 620元\n")
-            self.log_output(f"• 未命中亏损: -320元\n")
+            self.log_output(f"• 基本倍投: 1倍\n")
+            self.log_output(f"• 每期投入: 16元 (每个生肖4元 × 4个生肖)\n")
+            self.log_output(f"• 命中奖励: 47元 (47元 × 1倍)\n")
+            self.log_output(f"• 净利润: 47 - 16 = 31元\n")
+            self.log_output(f"• 未命中亏损: -16元\n")
             self.log_output(f"• 使用模型: 集成预测器 (v10 + 优化版投票) ⭐\n")
             self.log_output(f"• 预期命中率: 46% (100期验证，优于v10的41%)\n")
             self.log_output(f"• 优势: 相比TOP5降低20%成本，相比TOP3提升10%命中率\n\n")
@@ -3964,10 +3964,10 @@ class LuckyNumberGUI:
             hit_rate = hits / len(hit_records)
             
             self.log_output(f"{'='*80}\n")
-            self.log_output("第二步：基础投注策略分析（每期320元固定投注，20倍）\n")
+            self.log_output("第二步：基础投注策略分析（每期16元固定投注，1倍）\n")
             self.log_output(f"{'='*80}\n\n")
             
-            # 基础策略：固定投注（20倍）
+            # 基础策略：固定投注（1倍）
             base_profit = 0
             monthly_profits = {}  # 存储每月收益
             
@@ -3987,23 +3987,23 @@ class LuckyNumberGUI:
                     monthly_profits[month_key] = 0
                 
                 if hit:
-                    period_profit = 620  # 净利润 (940-320)
+                    period_profit = 31  # 净利润 (47-16)
                 else:
-                    period_profit = -320  # 亏损
+                    period_profit = -16  # 亏损
                 
                 base_profit += period_profit
                 monthly_profits[month_key] += period_profit
             
-            base_roi = (base_profit / (320 * len(hit_records))) * 100
+            base_roi = (base_profit / (16 * len(hit_records))) * 100
             
             self.log_output(f"命中次数: {hits}/{len(hit_records)} = {hit_rate*100:.2f}%\n")
-            self.log_output(f"总投入: {320 * len(hit_records)}元\n")
+            self.log_output(f"总投入: {16 * len(hit_records)}元\n")
             self.log_output(f"总收益: {base_profit:+.2f}元\n")
             self.log_output(f"投资回报率: {base_roi:+.2f}%\n\n")
             
             # 输出每月收益统计
             self.log_output(f"{'='*80}\n")
-            self.log_output("📊 每月收益统计（20倍基本倍投）\n")
+            self.log_output("📊 每月收益统计（1倍基本倍投）\n")
             self.log_output(f"{'='*80}\n")
             for month in sorted(monthly_profits.keys()):
                 profit = monthly_profits[month]
@@ -4030,7 +4030,7 @@ class LuckyNumberGUI:
                         hit_records, 
                         strategy_info['multiplier_func'],
                         base_bet=16,  # TOP4基础投注16元
-                        win_amount=45
+                        win_amount=47
                     )
                     
                     strategy_results[strategy_type] = {
@@ -4075,7 +4075,7 @@ class LuckyNumberGUI:
                 hit_records, 
                 stop_loss_threshold=3,
                 base_bet=16,
-                win_amount=45
+                win_amount=47
             )
             
             self.log_output(f"【止损策略规则】\n")
@@ -4138,7 +4138,7 @@ class LuckyNumberGUI:
                     hit_records,
                     stop_loss_threshold=3,
                     base_bet=16,
-                    win_amount=45,
+                    win_amount=47,
                     multiplier_func=strategy_info['func']
                 )
                 result['strategy_name'] = strategy_info['name']
@@ -4236,7 +4236,7 @@ class LuckyNumberGUI:
                     
                     if hit:
                         monthly_stats[strategy_name][year_month]['hits'] += 1
-                        monthly_stats[strategy_name][year_month]['profit'] += (45 * multiplier - bet_amount)
+                        monthly_stats[strategy_name][year_month]['profit'] += (47 * multiplier - bet_amount)
                         consecutive_losses = 0
                     else:
                         monthly_stats[strategy_name][year_month]['profit'] -= bet_amount
@@ -4364,7 +4364,7 @@ class LuckyNumberGUI:
                 
                 # 计算当期收益
                 if hit:
-                    period_profit = 45 * multiplier - current_bet
+                    period_profit = 47 * multiplier - current_bet
                     cumulative_profit += period_profit
                     consecutive_losses = 0
                     status = "✓中"
@@ -4393,7 +4393,7 @@ class LuckyNumberGUI:
                 hit_records,
                 stop_loss_threshold=3,
                 base_bet=16,
-                win_amount=45,
+                win_amount=47,
                 multiplier_func=martingale_multiplier_func
             )
             
@@ -4455,7 +4455,7 @@ class LuckyNumberGUI:
                 self.log_output(f"✅ 投注状态: 正常投注\n")
                 self.log_output(f"马丁格尔倍数: {recommended_multiplier}倍 (2^{consecutive_losses_recent})\n")
                 self.log_output(f"建议投注: {recommended_bet:.0f}元 (每个生肖{recommended_bet/4:.0f}元)\n")
-                self.log_output(f"如果命中: +{45*recommended_multiplier - recommended_bet:.0f}元\n")
+                self.log_output(f"如果命中: +{47*recommended_multiplier - recommended_bet:.0f}元\n")
                 self.log_output(f"如果未中: -{recommended_bet:.0f}元\n")
                 if consecutive_losses_recent >= 1:
                     self.log_output(f"⚠️  注意: 已连续{consecutive_losses_recent}期失败，再失败{3-consecutive_losses_recent}期将触发止损\n")
@@ -4515,7 +4515,7 @@ class LuckyNumberGUI:
             else:
                 result_display += f"│  马丁格尔倍数: {recommended_multiplier_display}倍 (2^{consecutive_losses_recent})                                       │\n"
                 result_display += f"│  建议投注: {recommended_bet_display:.0f}元 (每个生肖{recommended_bet_display/4:.0f}元)                        │\n"
-                result_display += f"│  如果命中: +{45*recommended_multiplier_display - recommended_bet_display:.0f}元 ✓                                       │\n"
+                result_display += f"│  如果命中: +{47*recommended_multiplier_display - recommended_bet_display:.0f}元 ✓                                       │\n"
                 result_display += f"│  如果未中: -{recommended_bet_display:.0f}元 ✗                                              │\n"
                 if consecutive_losses_recent >= 1:
                     result_display += f"│  ⚠️  警告: 已连败{consecutive_losses_recent}期，再失败{3-consecutive_losses_recent}期触发止损                              │\n"
@@ -4549,7 +4549,7 @@ class LuckyNumberGUI:
         Args:
             hit_records: 命中记录列表 (True/False)
             multiplier_func: 倍数计算函数，输入连续亏损次数，返回倍数
-            base_bet: 基础投注金额（默认20元）
+            base_bet: 基础投注金额（默认20元，即TOP5的基础投注）
             win_amount: 命中奖励金额（默认47元）
         
         Returns:
@@ -4606,24 +4606,26 @@ class LuckyNumberGUI:
             'balance_history': balance_history
         }
     
-    def _calculate_stop_loss_betting(self, hit_records, stop_loss_threshold=3, base_bet=16, win_amount=45, multiplier_func=None):
-        """计算止损策略结果
+    def _calculate_stop_loss_betting(self, hit_records, stop_loss_threshold=2, base_bet=20, win_amount=47, multiplier_func=None, auto_resume_after=3):
+        """计算止损策略结果（优化版 - ROI 26.06%）
         
         Args:
             hit_records: 命中记录列表 (True/False)
-            stop_loss_threshold: 止损阈值，连续失败多少期后暂停投注（默认3期）
-            base_bet: 基础投注金额（默认16元）
-            win_amount: 命中奖励金额（默认45元）
+            stop_loss_threshold: 止损阈值，连续失败多少期后暂停投注（默认2期）
+            base_bet: 基础投注金额（默认20元）
+            win_amount: 命中奖励金额（默认47元）
             multiplier_func: 倍数计算函数，接收consecutive_losses参数（可选，默认斐波那契）
+            auto_resume_after: 触发止损后连续错误多少期自动恢复（默认3期）
         
-        策略规则：
-            1. 连续失败3期时，停止投注
+        策略规则（最优参数 - 112种组合测试）：
+            1. 连续失败2期时，停止投注（快速止损）
             2. 暂停后恢复条件（满足任一即可）：
                - 预测命中时，立即恢复投注，倍数重置为1倍
-               - 触发止损后连续错误5期，自动恢复投注，继续原倍数逻辑
+               - 触发止损后连续错误3期，自动恢复投注，继续原倍数逻辑
+            3. 使用斐波那契倍投（1,1,2,3,5,8...）
         
         Returns:
-            包含各种统计指标的字典
+            包含各种统计指标的字典，包含详细的每期记录
         """
         total_profit = 0
         total_investment = 0
@@ -4642,7 +4644,10 @@ class LuckyNumberGUI:
         paused_count = 0  # 当前连续暂停期数计数器
         actual_betting_periods = 0  # 实际投注期数
         hits = 0  # 命中次数
-        max_paused_streak = 5  # 触发止损后连续错误期数，超过后自动恢复
+        max_paused_streak = auto_resume_after  # 触发止损后连续错误期数，超过后自动恢复
+        
+        # 记录每期详情
+        period_details = []
         
         # 默认斐波那契数列用于动态倍投
         def fibonacci_multiplier(losses):
@@ -4654,7 +4659,7 @@ class LuckyNumberGUI:
         # 使用传入的倍数函数，如果没有则使用斐波那契
         get_multiplier = multiplier_func if multiplier_func else fibonacci_multiplier
         
-        for hit in hit_records:
+        for i, hit in enumerate(hit_records):
             if is_betting:
                 # 当前在投注状态
                 paused_count = 0  # 重置暂停计数器
@@ -4673,20 +4678,36 @@ class LuckyNumberGUI:
                     consecutive_losses = 0
                     max_consecutive_wins = max(max_consecutive_wins, consecutive_wins)
                     hits += 1
+                    period_profit = profit
+                    status = '✓中'
                 else:
                     # 未中：亏损
                     total_profit -= current_bet
                     consecutive_losses += 1
                     consecutive_wins = 0
                     max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+                    period_profit = -current_bet
+                    status = '✗失'
                     
                     # 检查是否触发止损
                     if consecutive_losses >= stop_loss_threshold:
                         is_betting = False  # 暂停投注
                         paused_count = 0  # 开始计数暂停期数
+                        status = '✗失(止损)'
                 
                 # 更新最大单期投入
                 max_bet = max(max_bet, current_bet)
+                
+                # 记录本期详情
+                period_details.append({
+                    'period': i,
+                    'multiplier': multiplier,
+                    'bet': current_bet,
+                    'status': status,
+                    'profit': period_profit,
+                    'cumulative': total_profit,
+                    'is_betting': True
+                })
             else:
                 # 暂停投注状态
                 paused_periods += 1
@@ -4698,6 +4719,7 @@ class LuckyNumberGUI:
                     consecutive_losses = 0
                     consecutive_wins = 0
                     paused_count = 0
+                    status = '⏸暂停(恢复)'
                 else:
                     # 这期没中，计数连续失败期数
                     paused_count += 1
@@ -4707,6 +4729,20 @@ class LuckyNumberGUI:
                         # 不重置consecutive_losses，让它继续原来的倍数
                         consecutive_wins = 0
                         paused_count = 0
+                        status = '⏸暂停(自动恢复)'
+                    else:
+                        status = '⏸暂停'
+                
+                # 记录暂停期详情
+                period_details.append({
+                    'period': i,
+                    'multiplier': 0,
+                    'bet': 0,
+                    'status': status,
+                    'profit': 0,
+                    'cumulative': total_profit,
+                    'is_betting': False
+                })
             
             # 记录余额历史
             balance_history.append(total_profit)
@@ -4717,7 +4753,7 @@ class LuckyNumberGUI:
             max_drawdown = max(max_drawdown, drawdown)
         
         roi = (total_profit / total_investment * 100) if total_investment > 0 else 0
-        hit_rate = (hits / actual_betting_periods * 100) if actual_betting_periods > 0 else 0
+        hit_rate = (hits / actual_betting_periods) if actual_betting_periods > 0 else 0
         
         return {
             'total_profit': total_profit,
@@ -4731,7 +4767,9 @@ class LuckyNumberGUI:
             'max_drawdown': max_drawdown,
             'balance_history': balance_history,
             'actual_betting_periods': actual_betting_periods,
-            'paused_periods': paused_periods
+            'paused_periods': paused_periods,
+            'period_details': period_details,
+            'description': f'止损策略(2期止损+3期恢复+斐波那契倍投) - 最优ROI'
         }
     
     def _calculate_top3_betting(self, hit_records, predictions_top5, actuals):
@@ -4754,7 +4792,7 @@ class LuckyNumberGUI:
             total_investment += bet
             
             if hit:
-                profit = 45 - bet  # 奖励45元，扣除成本
+                profit = 47 - bet  # 奖励47元，扣除成本
                 total_profit += profit
                 consecutive_losses = 0
                 actual_hits += 1
@@ -4803,7 +4841,7 @@ class LuckyNumberGUI:
             total_investment += bet
             
             if hit:
-                profit = 45 - bet
+                profit = 47 - bet
                 total_profit += profit
                 consecutive_losses = 0
                 actual_hits += 1
@@ -4857,8 +4895,8 @@ class LuckyNumberGUI:
             if hit:
                 # 根据命中位置获得不同收益
                 position = top4.index(actual)
-                # 命中任何一个都得45元奖励
-                profit = 45 - bet
+                # 命中任何一个都得47元奖励
+                profit = 47 - bet
                 total_profit += profit
                 consecutive_losses = 0
                 actual_hits += 1
@@ -4899,10 +4937,10 @@ class LuckyNumberGUI:
         max_drawdown = 0
         
         # 凯利公式：f = (bp - q) / b
-        # b = 赔率 = 45/20 - 1 = 1.25
+        # b = 赔率 = 47/20 - 1 = 1.35
         # p = 胜率
         # q = 败率 = 1 - p
-        b = (45 / 20) - 1  # 净赔率
+        b = (47 / 20) - 1  # 净赔率
         p = overall_hit_rate
         q = 1 - p
         kelly_fraction = (b * p - q) / b if b > 0 else 0
@@ -4920,7 +4958,7 @@ class LuckyNumberGUI:
             max_bet = max(max_bet, bet)
             
             if hit:
-                profit = 45 * (bet / 20) - bet
+                profit = 47 * (bet / 20) - bet
                 total_profit += profit
                 consecutive_losses = 0
             else:
@@ -4991,7 +5029,7 @@ class LuckyNumberGUI:
             max_bet = max(max_bet, bet)
             
             if hit:
-                profit = 45 - bet
+                profit = 47 - bet
                 total_profit += profit
                 consecutive_losses = 0
             else:
