@@ -3621,6 +3621,7 @@ class LuckyNumberGUI:
             
             strategies = {
                 'fibonacci': {'name': '🏆斐波那契倍投(最优)', 'multiplier_func': self._fibonacci_multiplier, 'type': 'multiplier'},
+                'fibonacci_stop_loss': {'name': '🛡️斐波那契倍投+止损(推荐)', 'multiplier_func': self._fibonacci_with_stop_loss_multiplier, 'type': 'stop_loss_with_multiplier', 'stop_loss_threshold': 3},
                 'base': {'name': '固定投注TOP5', 'multiplier_func': lambda x: 1, 'type': 'multiplier'},
                 'stop_loss': {'name': '止损策略(2期止损)', 'type': 'stop_loss'},
                 'martingale': {'name': '马丁格尔倍投', 'multiplier_func': lambda x: 2**x if x <= 5 else 32, 'type': 'multiplier'},
@@ -3644,6 +3645,17 @@ class LuckyNumberGUI:
                             strategy_info['multiplier_func'],
                             base_bet=20,
                             win_amount=47
+                        )
+                    elif strategy_info.get('type') == 'stop_loss_with_multiplier':
+                        # 斐波那契倍投 + 止损策略
+                        stop_loss_threshold = strategy_info.get('stop_loss_threshold', 3)
+                        result = self._calculate_stop_loss_betting(
+                            hit_records,
+                            stop_loss_threshold=stop_loss_threshold,
+                            base_bet=20,
+                            win_amount=47,
+                            multiplier_func=strategy_info['multiplier_func'],
+                            auto_resume_after=5
                         )
                     elif strategy_info.get('type') == 'top3':
                         # TOP3精准投注（只买前3个生肖）
@@ -3701,12 +3713,140 @@ class LuckyNumberGUI:
             self.log_output(f"最大连亏: {best_result['max_consecutive_losses']}期\n")
             self.log_output(f"胜率: {hit_rate*100:.2f}%\n\n")
             
+            # 新增：斐波那契倍投+止损策略详细展示
+            if 'fibonacci_stop_loss' in strategy_results:
+                fib_stop_loss_result = strategy_results['fibonacci_stop_loss']['result']
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"第五步：🛡️斐波那契倍投+止损策略详细分析（推荐）\n")
+                self.log_output(f"{'='*80}\n\n")
+                self.log_output(f"策略参数：\n")
+                self.log_output(f"  • 倍投方式: 斐波那契数列 (1,1,2,3,5)\n")
+                self.log_output(f"  • 止损阈值: 连续3期失败后暂停投注\n")
+                self.log_output(f"  • 最大倍数: 5倍（风险控制）\n")
+                self.log_output(f"  • 恢复规则: 命中后重置，或连续错5期自动恢复\n\n")
+                
+                self.log_output(f"策略总结：\n")
+                self.log_output(f"  测试期数: {len(hit_records)}期\n")
+                self.log_output(f"  实际投注期数: {fib_stop_loss_result.get('actual_betting_periods', len(hit_records))}期\n")
+                if 'paused_periods' in fib_stop_loss_result:
+                    paused_rate = fib_stop_loss_result['paused_periods'] / len(hit_records) * 100
+                    self.log_output(f"  暂停期数: {fib_stop_loss_result['paused_periods']}期 ({paused_rate:.1f}%)\n")
+                self.log_output(f"  命中次数: {fib_stop_loss_result.get('hits', hits)}次\n")
+                self.log_output(f"  命中率: {fib_stop_loss_result.get('hit_rate', hit_rate*100):.2f}%\n")
+                self.log_output(f"  总投入: {fib_stop_loss_result['total_investment']:.2f}元\n")
+                self.log_output(f"  总收益: {fib_stop_loss_result['total_profit']:+.2f}元\n")
+                self.log_output(f"  ROI: {fib_stop_loss_result['roi']:+.2f}%\n")
+                self.log_output(f"  最大连败: {fib_stop_loss_result['max_consecutive_losses']}期\n")
+                self.log_output(f"  最大单期投入: {fib_stop_loss_result['max_bet']:.2f}元\n")
+                self.log_output(f"  最大回撤: {fib_stop_loss_result['max_drawdown']:.2f}元\n\n")
+                
+                # 详细每期收益记录
+                self.log_output(f"最近200期详细收益记录：\n")
+                self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10} {'状态':<12}\n")
+                self.log_output("-" * 135 + "\n")
+                
+                # 重新计算详细记录（带止损）
+                cumulative_profit = 0
+                cumulative_profit_2026 = 0
+                consecutive_losses = 0
+                is_paused = False
+                paused_count = 0
+                
+                for i in range(len(hit_records)):
+                    idx = start_idx + i
+                    actual_row = df.iloc[idx]
+                    date_str = actual_row['date']
+                    actual_animal = actual_row['animal']
+                    predicted_top5 = predictions_top5[i]
+                    hit = hit_records[i]
+                    
+                    # 解析日期，判断是否属于2026年
+                    try:
+                        from datetime import datetime
+                        if '/' in date_str:
+                            date_parts = date_str.split('/')
+                            date_obj = datetime(int(date_parts[0]), int(date_parts[1]), int(date_parts[2]))
+                        else:
+                            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                        is_2026_or_later = date_obj >= datetime(2026, 1, 1)
+                    except:
+                        is_2026_or_later = False
+                    
+                    # 检查是否在暂停期
+                    if is_paused:
+                        if hit:
+                            # 命中则恢复投注，重置倍数
+                            is_paused = False
+                            paused_count = 0
+                            consecutive_losses = 0
+                            status_str = "[RESUME]恢复"
+                        else:
+                            # 这期没中，计数连续失败期数
+                            paused_count += 1
+                            if paused_count >= 5:
+                                # 触发止损后连续错误5期，自动恢复
+                                is_paused = False
+                                paused_count = 0
+                                # 不重置consecutive_losses，让它继续原来的倍数
+                                status_str = "[AUTO]自动恢复"
+                            else:
+                                status_str = f"[PAUSE]暂停{paused_count}"
+                        
+                        # 暂停期间不投注
+                        top5_str = ','.join(predicted_top5)
+                        hit_str = "✓中" if hit else "✗失"
+                        profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
+                        self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {'0':<6} {'0':<8} {hit_str:<8} {'-':<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10} {status_str:<12}\n")
+                        continue
+                    
+                    # 计算当期倍数和投注金额
+                    multiplier = self._fibonacci_with_stop_loss_multiplier(consecutive_losses)
+                    current_bet = 20 * multiplier
+                    
+                    # 计算当期收益
+                    if hit:
+                        period_profit = 47 * multiplier - current_bet
+                        cumulative_profit += period_profit
+                        if is_2026_or_later:
+                            cumulative_profit_2026 += period_profit
+                        consecutive_losses = 0
+                        status = "✓中"
+                        profit_str = f"+{period_profit:.2f}"
+                        status_str = "正常"
+                    else:
+                        period_profit = -current_bet
+                        cumulative_profit += period_profit
+                        if is_2026_or_later:
+                            cumulative_profit_2026 += period_profit
+                        consecutive_losses += 1
+                        status = "✗失"
+                        profit_str = f"{period_profit:.2f}"
+                        
+                        # 检查是否触发止损
+                        if consecutive_losses >= 3:
+                            is_paused = True
+                            paused_count = 0
+                            status_str = "[STOP]触发止损"
+                        else:
+                            status_str = f"连败{consecutive_losses}"
+                    
+                    top5_str = ','.join(predicted_top5)
+                    profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
+                    self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {multiplier:<6.0f} {current_bet:<8.0f} {status:<8} {profit_str:<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10} {status_str:<12}\n")
+                
+                self.log_output("-" * 135 + "\n")
+                self.log_output(f"\n统计: 命中{hits}/{len(hit_records)}期 = {hit_rate*100:.2f}%\n")
+                self.log_output(f"最终累计收益: {cumulative_profit:+.2f}元\n")
+                self.log_output(f"2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
+                self.log_output(f"总投入: {fib_stop_loss_result['total_investment']:.2f}元\n")
+                self.log_output(f"ROI: {fib_stop_loss_result['roi']:+.2f}%\n\n")
+            
             # 详细倍投收益记录（使用最佳策略）
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第五步：最近200期倍投收益详情（{best_name}）\n")
+            self.log_output(f"第六步：最近200期倍投收益详情（{best_name}）\n")
             self.log_output(f"{'='*80}\n\n")
-            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10}\n")
-            self.log_output("-" * 110 + "\n")
+            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10}\n")
+            self.log_output("-" * 122 + "\n")
             
             # 使用最佳策略重新计算每期详情
             # 检查最佳策略类型
@@ -3719,6 +3859,7 @@ class LuckyNumberGUI:
                 best_multiplier_func = None
             
             cumulative_profit = 0
+            cumulative_profit_2026 = 0  # 2026年累计收益
             consecutive_losses_detail = 0
             
             for i in range(len(hit_records)):
@@ -3728,6 +3869,18 @@ class LuckyNumberGUI:
                 actual_animal = actual_row['animal']
                 predicted_top5 = predictions_top5[i]
                 hit = hit_records[i]
+                
+                # 解析日期，判断是否属于2026年
+                try:
+                    from datetime import datetime
+                    if '/' in date_str:
+                        date_parts = date_str.split('/')
+                        date_obj = datetime(int(date_parts[0]), int(date_parts[1]), int(date_parts[2]))
+                    else:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    is_2026_or_later = date_obj >= datetime(2026, 1, 1)
+                except:
+                    is_2026_or_later = False
                 
                 # 计算当期倍数和投注金额
                 if use_multiplier and best_multiplier_func:
@@ -3745,29 +3898,37 @@ class LuckyNumberGUI:
                     else:
                         period_profit = 47 - current_bet
                     cumulative_profit += period_profit
+                    if is_2026_or_later:
+                        cumulative_profit_2026 += period_profit
                     consecutive_losses_detail = 0
                     status = "✓中"
                     profit_str = f"+{period_profit:.2f}"
                 else:
                     period_profit = -current_bet
                     cumulative_profit += period_profit
+                    if is_2026_or_later:
+                        cumulative_profit_2026 += period_profit
                     consecutive_losses_detail += 1
                     status = "✗失"
                     profit_str = f"{period_profit:.2f}"
                 
                 top5_str = ','.join(predicted_top5[:5])  # 只显示前5个生肖节省空间
                 
-                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {multiplier:<6.1f} {current_bet:<8.0f} {status:<6} {profit_str:<10} {cumulative_profit:>+10.2f}\n")
+                # 显示2026累计收益
+                profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
+                
+                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {multiplier:<6.1f} {current_bet:<8.0f} {status:<6} {profit_str:<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10}\n")
             
-            self.log_output("-" * 110 + "\n")
+            self.log_output("-" * 122 + "\n")
             self.log_output(f"\n统计: 命中{hits}/{len(hit_records)}期 = {hit_rate*100:.2f}%\n")
             self.log_output(f"最终累计收益: {cumulative_profit:+.2f}元\n")
+            self.log_output(f"2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
             self.log_output(f"总投入: {best_result['total_investment']:.2f}元\n")
             self.log_output(f"ROI: {best_result['roi']:+.2f}%\n\n")
             
             # 预测下一期
             self.log_output(f"{'='*80}\n")
-            self.log_output("第六步：下期投注建议\n")
+            self.log_output("第七步：下期投注建议\n")
             self.log_output(f"{'='*80}\n\n")
             
             # 获取下期预测
@@ -3817,6 +3978,32 @@ class LuckyNumberGUI:
                 self.log_output(f"如果命中: +25元\n")
             
             self.log_output(f"如果未中: -{recommended_bet:.2f}元\n\n")
+            
+            # 新增：止损策略下期投注建议
+            self.log_output(f"{'='*80}\n")
+            self.log_output("🛡️ 斐波那契倍投+止损策略建议（风险控制）\n")
+            self.log_output(f"{'='*80}\n")
+            
+            # 计算止损策略的建议倍数
+            stop_loss_multiplier = self._fibonacci_with_stop_loss_multiplier(consecutive_losses)
+            stop_loss_bet = 20 * stop_loss_multiplier
+            
+            self.log_output(f"下期预测TOP5: {', '.join(next_top5)}\n")
+            self.log_output(f"最近连续亏损: {consecutive_losses}期\n")
+            self.log_output(f"当前倍数: {stop_loss_multiplier}倍 (最大5倍)\n")
+            self.log_output(f"建议投注: {stop_loss_bet:.2f}元 (每个生肖{stop_loss_bet/5:.2f}元)\n")
+            
+            if consecutive_losses >= 3:
+                self.log_output(f"\n⚠️ 风险提示: 已连续亏损{consecutive_losses}期，已达到止损阈值！\n")
+                self.log_output(f"   建议: 暂停投注，等待命中后再恢复\n")
+            elif consecutive_losses == 2:
+                self.log_output(f"\n⚠️ 风险提示: 已连续亏损{consecutive_losses}期，接近止损阈值\n")
+                self.log_output(f"   建议: 谨慎投注，如再次未中将触发止损\n")
+            else:
+                self.log_output(f"如果命中: +{47*stop_loss_multiplier - stop_loss_bet:.2f}元，倍数重置为1倍\n")
+                self.log_output(f"如果未中: -{stop_loss_bet:.2f}元，倍数增加至{self._fibonacci_with_stop_loss_multiplier(consecutive_losses+1)}倍\n")
+            
+            self.log_output("\n")
             
             # 在结果文本框显示汇总
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
@@ -4313,12 +4500,13 @@ class LuckyNumberGUI:
             self.log_output(f"{'='*80}\n\n")
             self.log_output(f"说明：采用马丁格尔倍投策略，连续3期失败后暂停投注\n")
             self.log_output(f"      恢复规则：命中后重置倍数，自动恢复（连续错5期）后继续原倍数\n\n")
-            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP4':<30} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'状态':<10}\n")
-            self.log_output("-" * 120 + "\n")
+            self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP4':<30} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10} {'状态':<10}\n")
+            self.log_output("-" * 132 + "\n")
             
             # 使用马丁格尔倍投 + 3期止损策略
             martingale_multiplier_func = lambda x: 1 if x == 0 else min(2 ** x, 64)  # 马丁格尔倍投，最大64倍
             cumulative_profit = 0
+            cumulative_profit_2026 = 0  # 2026年累计收益
             consecutive_losses = 0
             paused_periods = 0  # 已暂停的期数
             is_paused = False  # 是否处于暂停状态
@@ -4330,6 +4518,18 @@ class LuckyNumberGUI:
                 actual_animal = actual_row['animal']
                 predicted_top4 = predictions_top4[i]
                 hit = hit_records[i]
+                
+                # 解析日期，判断是否属于2026年
+                try:
+                    from datetime import datetime
+                    if '/' in date_str:
+                        date_parts = date_str.split('/')
+                        date_obj = datetime(int(date_parts[0]), int(date_parts[1]), int(date_parts[2]))
+                    else:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                    is_2026_or_later = date_obj >= datetime(2026, 1, 1)
+                except:
+                    is_2026_or_later = False
                 
                 # 检查是否在暂停期
                 if is_paused:
@@ -4355,7 +4555,8 @@ class LuckyNumberGUI:
                     # 暂停期间不投注
                     top4_str = ','.join(predicted_top4)
                     hit_str = "✓中" if hit else "✗失"
-                    self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {'0':<6} {'0':<8} {hit_str:<8} {'-':<10} {cumulative_profit:>+10.2f} {status_str:<10}\n")
+                    profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
+                    self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {'0':<6} {'0':<8} {hit_str:<8} {'-':<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10} {status_str:<10}\n")
                     continue
                 
                 # 计算当期倍数和投注金额
@@ -4366,6 +4567,8 @@ class LuckyNumberGUI:
                 if hit:
                     period_profit = 47 * multiplier - current_bet
                     cumulative_profit += period_profit
+                    if is_2026_or_later:
+                        cumulative_profit_2026 += period_profit
                     consecutive_losses = 0
                     status = "✓中"
                     profit_str = f"+{period_profit:.2f}"
@@ -4373,6 +4576,8 @@ class LuckyNumberGUI:
                 else:
                     period_profit = -current_bet
                     cumulative_profit += period_profit
+                    if is_2026_or_later:
+                        cumulative_profit_2026 += period_profit
                     consecutive_losses += 1
                     status = "✗失"
                     profit_str = f"{period_profit:.2f}"
@@ -4386,7 +4591,8 @@ class LuckyNumberGUI:
                         status_str = f"连败{consecutive_losses}"
                 
                 top4_str = ','.join(predicted_top4)
-                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {multiplier:<6.0f} {current_bet:<8.0f} {status:<8} {profit_str:<10} {cumulative_profit:>+10.2f} {status_str:<10}\n")
+                profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
+                self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {multiplier:<6.0f} {current_bet:<8.0f} {status:<8} {profit_str:<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10} {status_str:<10}\n")
             
             # 计算马丁格尔倍投策略的实际统计数据
             martingale_result = self._calculate_stop_loss_betting(
@@ -4397,7 +4603,7 @@ class LuckyNumberGUI:
                 multiplier_func=martingale_multiplier_func
             )
             
-            self.log_output("-" * 120 + "\n")
+            self.log_output("-" * 132 + "\n")
             self.log_output(f"\n【马丁格尔倍投 + 3期止损策略统计】\n")
             self.log_output(f"  测试期数: {len(hit_records)}期\n")
             self.log_output(f"  实际投注期数: {martingale_result['actual_betting_periods']}期\n")
@@ -4406,6 +4612,7 @@ class LuckyNumberGUI:
             self.log_output(f"  命中率: {martingale_result['hit_rate']:.2f}%\n")
             self.log_output(f"  总投入: {martingale_result['total_investment']:.2f}元\n")
             self.log_output(f"  总收益: {martingale_result['total_profit']:+.2f}元\n")
+            self.log_output(f"  2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
             self.log_output(f"  ROI: {martingale_result['roi']:+.2f}%\n")
             self.log_output(f"  最大连败: {martingale_result['max_consecutive_losses']}期\n")
             self.log_output(f"  最大单注: {martingale_result['max_bet']:.0f}元\n")
@@ -4542,6 +4749,13 @@ class LuckyNumberGUI:
         if consecutive_losses < len(fib):
             return fib[consecutive_losses]
         return fib[-1]
+    
+    def _fibonacci_with_stop_loss_multiplier(self, consecutive_losses):
+        """斐波那契数列倍数（限制最大5倍）- 用于止损策略"""
+        fib = [1, 1, 2, 3, 5]  # 限制最大倍数为5倍
+        if consecutive_losses < len(fib):
+            return fib[consecutive_losses]
+        return fib[-1]  # 最大5倍
     
     def _calculate_zodiac_betting_result(self, hit_records, multiplier_func, base_bet=20, win_amount=47):
         """计算生肖投注策略结果
