@@ -3841,10 +3841,11 @@ class LuckyNumberGUI:
                 self.log_output(f"总投入: {fib_stop_loss_result['total_investment']:.2f}元\n")
                 self.log_output(f"ROI: {fib_stop_loss_result['roi']:+.2f}%\n\n")
             
-            # 详细倍投收益记录（使用最佳策略）
+            # 详细倍投收益记录（使用最佳策略，限制最大倍数5倍）
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第六步：最近200期倍投收益详情（{best_name}）\n")
-            self.log_output(f"{'='*80}\n\n")
+            self.log_output(f"第六步：最近200期倍投收益详情（{best_name}，最大倍数5倍）\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"说明：为控制风险，倍数上限设为5倍\n\n")
             self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10}\n")
             self.log_output("-" * 122 + "\n")
             
@@ -3861,6 +3862,7 @@ class LuckyNumberGUI:
             cumulative_profit = 0
             cumulative_profit_2026 = 0  # 2026年累计收益
             consecutive_losses_detail = 0
+            total_investment_5x = 0  # 实际总投入（5倍上限）
             
             for i in range(len(hit_records)):
                 idx = start_idx + i
@@ -3882,14 +3884,17 @@ class LuckyNumberGUI:
                 except:
                     is_2026_or_later = False
                 
-                # 计算当期倍数和投注金额
+                # 计算当期倍数和投注金额（限制最大倍数为5倍）
                 if use_multiplier and best_multiplier_func:
-                    multiplier = best_multiplier_func(consecutive_losses_detail)
+                    multiplier = min(best_multiplier_func(consecutive_losses_detail), 5)  # 限制最大倍数5倍
                     current_bet = 20 * multiplier
                 else:
                     # 对于非倍投策略，使用固定值显示
                     multiplier = 1.0
                     current_bet = 20
+                
+                # 累加实际投入
+                total_investment_5x += current_bet
                 
                 # 计算当期收益
                 if hit:
@@ -3920,11 +3925,26 @@ class LuckyNumberGUI:
                 self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top5_str:<25} {multiplier:<6.1f} {current_bet:<8.0f} {status:<6} {profit_str:<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10}\n")
             
             self.log_output("-" * 122 + "\n")
-            self.log_output(f"\n统计: 命中{hits}/{len(hit_records)}期 = {hit_rate*100:.2f}%\n")
-            self.log_output(f"最终累计收益: {cumulative_profit:+.2f}元\n")
-            self.log_output(f"2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
-            self.log_output(f"总投入: {best_result['total_investment']:.2f}元\n")
-            self.log_output(f"ROI: {best_result['roi']:+.2f}%\n\n")
+            self.log_output(f"\n【倍投策略统计（最大倍数5倍）】\n")
+            self.log_output(f"  测试期数: {len(hit_records)}期\n")
+            self.log_output(f"  命中次数: {hits}次\n")
+            self.log_output(f"  命中率: {hit_rate*100:.2f}%\n")
+            self.log_output(f"  实际总投入: {total_investment_5x:.2f}元 (限制5倍上限)\n")
+            self.log_output(f"  最终累计收益: {cumulative_profit:+.2f}元\n")
+            self.log_output(f"  2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
+            
+            # 计算实际ROI
+            actual_roi_5x = (cumulative_profit / total_investment_5x * 100) if total_investment_5x > 0 else 0
+            self.log_output(f"  实际ROI: {actual_roi_5x:+.2f}%\n")
+            
+            # 显示与原策略的对比
+            if best_result['total_investment'] != total_investment_5x:
+                saved_investment = best_result['total_investment'] - total_investment_5x
+                self.log_output(f"\n  💡 倍数限制效果：\n")
+                self.log_output(f"     原策略总投入: {best_result['total_investment']:.2f}元\n")
+                self.log_output(f"     5倍限制后投入: {total_investment_5x:.2f}元\n")
+                self.log_output(f"     节省投入: {saved_investment:.2f}元 ({saved_investment/best_result['total_investment']*100:.1f}%)\n")
+            self.log_output("\n")
             
             # 预测下一期
             self.log_output(f"{'='*80}\n")
