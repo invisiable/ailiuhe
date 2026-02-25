@@ -334,7 +334,7 @@ class LuckyNumberGUI:
         ).grid(row=7, column=1, sticky=tk.W, padx=5)
         
         # 增强版生肖预测（新增 - 60%成功率）
-       self.zodiac_enhanced_button = ttk.Button(
+        self.zodiac_enhanced_button = ttk.Button(
             pred_frame, text="🎯 生肖Top5增强版 (60%)", command=self.predict_zodiac_enhanced,
             state='normal', width=25
         )
@@ -429,19 +429,19 @@ class LuckyNumberGUI:
             foreground="darkred"
         ).grid(row=2, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(5, 10))
         
-        # TOP15投注策略分析按钮（隐藏）
+        # TOP15投注策略分析按钮
         self.betting_strategy_button = ttk.Button(
-            pred_frame, text="💰 投注策略分析", command=self.analyze_betting_strategy,
+            pred_frame, text="💰 TOP15投注策略", command=self.analyze_betting_strategy,
             state='normal', width=25
         )
-        # self.betting_strategy_button.grid(row=17, column=0, padx=10, pady=5)
+        self.betting_strategy_button.grid(row=5, column=0, padx=10, pady=5)
         
-        # ttk.Label(
-        #     pred_frame,
-        #     text="← TOP15斐波那契投注策略 🔥",
-        #     font=('', 9, 'bold'),
-        #     foreground="darkred"
-        # ).grid(row=17, column=1, sticky=tk.W, padx=5)
+        ttk.Label(
+            pred_frame,
+            text="← TOP15斐波那契投注策略：每期60元，命中奖47元 🔥",
+            font=('', 9, 'bold'),
+            foreground="darkred"
+        ).grid(row=5, column=1, sticky=tk.W, padx=5)
         
         # 生肖投注策略按钮（保留）
         self.zodiac_betting_button = ttk.Button(
@@ -471,9 +471,23 @@ class LuckyNumberGUI:
             foreground="blue"
         ).grid(row=4, column=1, sticky=tk.W, padx=5)
         
+        # TOP15 vs 生肖TOP4对比分析按钮（新增）
+        self.compare_strategies_button = ttk.Button(
+            pred_frame, text="📊 TOP15 vs TOP4对比", command=self.compare_top15_vs_top4,
+            state='normal', width=25
+        )
+        self.compare_strategies_button.grid(row=6, column=0, padx=10, pady=5)
+        
+        ttk.Label(
+            pred_frame,
+            text="← 对比TOP15与生肖TOP4的最近100期中奖情况 📊",
+            font=('', 9, 'bold'),
+            foreground="darkorange"
+        ).grid(row=6, column=1, sticky=tk.W, padx=5)
+        
         # 预测结果显示区域
         result_frame = ttk.Frame(pred_frame)
-        result_frame.grid(row=5, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
+        result_frame.grid(row=7, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
         result_frame.columnconfigure(0, weight=1)
         
         self.result_text = scrolledtext.ScrolledText(
@@ -3126,6 +3140,7 @@ class LuckyNumberGUI:
             
             predictions_top15 = []
             actuals = []
+            dates = []  # 记录每期的日期
             
             # 生成每期的TOP15预测
             self.log_output(f"使用与'⭐ 综合预测 Top 15'相同的预测方法...\n")
@@ -3145,6 +3160,10 @@ class LuckyNumberGUI:
                 # 实际结果
                 actual = df.iloc[i]['number']
                 actuals.append(actual)
+                
+                # 记录日期
+                date = df.iloc[i]['date']
+                dates.append(date)
                 
                 if (i - start_idx + 1) % 20 == 0:
                     self.log_output(f"  已处理 {i - start_idx + 1}/{test_periods} 期...\n")
@@ -3176,6 +3195,11 @@ class LuckyNumberGUI:
             best_strategy_type = 'fibonacci'
             best_name = '斐波那契（平衡）'
             best_result = betting.simulate_strategy(predictions_top15, actuals, best_strategy_type, hit_rate=actual_hit_rate)
+            
+            # 将日期信息添加到历史记录中
+            for i, period_data in enumerate(best_result['history']):
+                if i < len(dates):
+                    period_data['date'] = dates[i]
             
             # 创建strategy_results字典以便后续使用
             strategy_results = {
@@ -3209,12 +3233,22 @@ class LuckyNumberGUI:
             
             # 显示最近100期详情
             self.log_output(f"【最近100期详情】\n")
-            self.log_output(f"{'期号':<6} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
-            self.log_output("-" * 70 + "\n")
+            self.log_output(f"{'日期':<12} {'中奖号码':<8} {'预测号码':<50} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
+            self.log_output("-" * 140 + "\n")
             
             for period in best_result['history'][-100:]:
+                # 格式化预测号码，保持在50字符宽度内
+                pred_str = str(period.get('prediction', []))
+                if len(pred_str) > 48:
+                    pred_str = pred_str[:45] + "..."
+                
+                # 获取日期，如果没有则显示期号
+                date_str = period.get('date', f"第{period['period']}期")
+                
                 self.log_output(
-                    f"{period['period']:<6} "
+                    f"{str(date_str):<12} "
+                    f"{period.get('actual', 'N/A'):<8} "
+                    f"{pred_str:<50} "
                     f"{period['multiplier']:<6} "
                     f"{period['bet_amount']:<10.2f} "
                     f"{period['result']:<6} "
@@ -4514,17 +4548,17 @@ class LuckyNumberGUI:
             else:
                 self.log_output("⚠️ 无法解析日期数据，跳过月度分析\n\n")
             
-            # 详细倍投收益记录（使用马丁格尔倍投 + 3期止损策略）
+            # 详细倍投收益记录（使用斐波那契倍投 + 3期止损策略）
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第四步：最近200期倍投收益详情（马丁格尔倍投 + 3期止损）\n")
+            self.log_output(f"第四步：最近200期倍投收益详情（斐波那契倍投 + 3期止损）\n")
             self.log_output(f"{'='*80}\n\n")
-            self.log_output(f"说明：采用马丁格尔倍投策略，连续3期失败后暂停投注\n")
+            self.log_output(f"说明：采用斐波那契倍投策略，连续3期失败后暂停投注\n")
             self.log_output(f"      恢复规则：命中后重置倍数，自动恢复（连续错5期）后继续原倍数\n\n")
             self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP4':<30} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10} {'状态':<10}\n")
             self.log_output("-" * 132 + "\n")
             
-            # 使用马丁格尔倍投 + 3期止损策略
-            martingale_multiplier_func = lambda x: 1 if x == 0 else min(2 ** x, 64)  # 马丁格尔倍投，最大64倍
+            # 使用斐波那契倍投 + 3期止损策略
+            fibonacci_multiplier_func = lambda x: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89][min(x, 10)]  # 斐波那契倍投
             cumulative_profit = 0
             cumulative_profit_2026 = 0  # 2026年累计收益
             consecutive_losses = 0
@@ -4580,7 +4614,7 @@ class LuckyNumberGUI:
                     continue
                 
                 # 计算当期倍数和投注金额
-                multiplier = martingale_multiplier_func(consecutive_losses)
+                multiplier = fibonacci_multiplier_func(consecutive_losses)
                 current_bet = 16 * multiplier
                 
                 # 计算当期收益
@@ -4614,33 +4648,33 @@ class LuckyNumberGUI:
                 profit_2026_str = f"{cumulative_profit_2026:>+10.2f}" if is_2026_or_later else "-"
                 self.log_output(f"第{idx+1:<5}期 {date_str:<12} {actual_animal:<6} {top4_str:<30} {multiplier:<6.0f} {current_bet:<8.0f} {status:<8} {profit_str:<10} {cumulative_profit:>+10.2f} {profit_2026_str:<10} {status_str:<10}\n")
             
-            # 计算马丁格尔倍投策略的实际统计数据
-            martingale_result = self._calculate_stop_loss_betting(
+            # 计算斐波那契倍投策略的实际统计数据
+            fibonacci_result = self._calculate_stop_loss_betting(
                 hit_records,
                 stop_loss_threshold=3,
                 base_bet=16,
                 win_amount=47,
-                multiplier_func=martingale_multiplier_func
+                multiplier_func=fibonacci_multiplier_func
             )
             
             self.log_output("-" * 132 + "\n")
-            self.log_output(f"\n【马丁格尔倍投 + 3期止损策略统计】\n")
+            self.log_output(f"\n【斐波那契倍投 + 3期止损策略统计】\n")
             self.log_output(f"  测试期数: {len(hit_records)}期\n")
-            self.log_output(f"  实际投注期数: {martingale_result['actual_betting_periods']}期\n")
-            self.log_output(f"  暂停期数: {martingale_result['paused_periods']}期 ({martingale_result['paused_periods']/len(hit_records)*100:.1f}%)\n")
-            self.log_output(f"  命中次数: {martingale_result['hits']}次\n")
-            self.log_output(f"  命中率: {martingale_result['hit_rate']:.2f}%\n")
-            self.log_output(f"  总投入: {martingale_result['total_investment']:.2f}元\n")
-            self.log_output(f"  总收益: {martingale_result['total_profit']:+.2f}元\n")
+            self.log_output(f"  实际投注期数: {fibonacci_result['actual_betting_periods']}期\n")
+            self.log_output(f"  暂停期数: {fibonacci_result['paused_periods']}期 ({fibonacci_result['paused_periods']/len(hit_records)*100:.1f}%)\n")
+            self.log_output(f"  命中次数: {fibonacci_result['hits']}次\n")
+            self.log_output(f"  命中率: {fibonacci_result['hit_rate']:.2f}%\n")
+            self.log_output(f"  总投入: {fibonacci_result['total_investment']:.2f}元\n")
+            self.log_output(f"  总收益: {fibonacci_result['total_profit']:+.2f}元\n")
             self.log_output(f"  2026年累计收益: {cumulative_profit_2026:+.2f}元\n")
-            self.log_output(f"  ROI: {martingale_result['roi']:+.2f}%\n")
-            self.log_output(f"  最大连败: {martingale_result['max_consecutive_losses']}期\n")
-            self.log_output(f"  最大单注: {martingale_result['max_bet']:.0f}元\n")
-            self.log_output(f"  最大回撤: {martingale_result['max_drawdown']:.2f}元\n\n")
+            self.log_output(f"  ROI: {fibonacci_result['roi']:+.2f}%\n")
+            self.log_output(f"  最大连败: {fibonacci_result['max_consecutive_losses']}期\n")
+            self.log_output(f"  最大单注: {fibonacci_result['max_bet']:.0f}元\n")
+            self.log_output(f"  最大回撤: {fibonacci_result['max_drawdown']:.2f}元\n\n")
             
             # 预测下一期
             self.log_output(f"{'='*80}\n")
-            self.log_output("第五步：下期投注建议（马丁格尔倍投 + 3期止损）\n")
+            self.log_output("第五步：下期投注建议（斐波那契倍投 + 3期止损）\n")
             self.log_output(f"{'='*80}\n\n")
             
             # 获取下期预测 - 使用集成预测器
@@ -4659,44 +4693,46 @@ class LuckyNumberGUI:
             # 判断是否应该暂停投注（3期止损策略）
             should_pause_betting = consecutive_losses_recent >= 3
             
-            # 使用马丁格尔倍投策略
+            # 使用斐波那契倍投策略
             if should_pause_betting:
                 self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
                 self.log_output(f"选择模型: {next_result['selected_model']}\n")
                 self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-                self.log_output(f"推荐策略: 马丁格尔倍投 + 3期止损\n")
+                self.log_output(f"推荐策略: 斐波那契倍投 + 3期止损\n")
                 self.log_output(f"⚠️  【止损警告】连续{consecutive_losses_recent}期失败，已触发止损阈值（3期）\n")
                 self.log_output(f"🛡️ 投注建议: 暂停投注，等待恢复条件\n")
                 self.log_output(f"📊 恢复条件（满足任一即可）: \n")
                 self.log_output(f"   1. 当预测命中时，立即恢复投注，倍数重置为1倍\n")
                 self.log_output(f"   2. 触发止损后连续错误5期，自动恢复投注，继续原倍数逻辑\n\n")
             else:
-                # 计算马丁格尔倍数
-                recommended_multiplier = martingale_multiplier_func(consecutive_losses_recent)
+                # 计算斐波那契倍数
+                recommended_multiplier = fibonacci_multiplier_func(consecutive_losses_recent)
                 recommended_bet = 16 * recommended_multiplier
+                fib_sequence = [1, 1, 2, 3, 5, 8, 13]
+                fib_str = '→'.join(map(str, fib_sequence[:consecutive_losses_recent+1]))
                 
                 self.log_output(f"下期预测TOP4: {', '.join(next_top4)}\n")
                 self.log_output(f"选择模型: {next_result['selected_model']}\n")
                 self.log_output(f"最近连续亏损: {consecutive_losses_recent}期\n")
-                self.log_output(f"推荐策略: 马丁格尔倍投 + 3期止损\n")
+                self.log_output(f"推荐策略: 斐波那契倍投 + 3期止损\n")
                 self.log_output(f"✅ 投注状态: 正常投注\n")
-                self.log_output(f"马丁格尔倍数: {recommended_multiplier}倍 (2^{consecutive_losses_recent})\n")
+                self.log_output(f"斐波那契倍数: {recommended_multiplier}倍 ({fib_str})\n")
                 self.log_output(f"建议投注: {recommended_bet:.0f}元 (每个生肖{recommended_bet/4:.0f}元)\n")
                 self.log_output(f"如果命中: +{47*recommended_multiplier - recommended_bet:.0f}元\n")
                 self.log_output(f"如果未中: -{recommended_bet:.0f}元\n")
                 if consecutive_losses_recent >= 1:
                     self.log_output(f"⚠️  注意: 已连续{consecutive_losses_recent}期失败，再失败{3-consecutive_losses_recent}期将触发止损\n")
-                self.log_output(f"\n💡 马丁格尔策略说明:\n")
-                self.log_output(f"   • 连败1期 → 2倍投注 (32元)\n")
-                self.log_output(f"   • 连败2期 → 4倍投注 (64元)\n")
+                self.log_output(f"\n💡 斐波那契策略说明:\n")
+                self.log_output(f"   • 连败1期 → 1倍投注 (16元)\n")
+                self.log_output(f"   • 连败2期 → 2倍投注 (32元)\n")
                 self.log_output(f"   • 连败3期 → 触发止损，暂停投注\n")
                 self.log_output(f"   • 命中恢复 → 倍数重置为1倍\n")
-                self.log_output(f"   • 自动恢复 → 继续原倍数（如4倍止损，恢复后8倍）\n\n")
+                self.log_output(f"   • 自动恢复 → 继续原倍数（如2倍止损，恢复后3倍）\n\n")
             
             # 在结果文本框显示汇总前，保存暂停状态
             should_pause_for_display = consecutive_losses_recent >= 3
-            recommended_bet_display = 16 * martingale_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 0
-            recommended_multiplier_display = martingale_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 1
+            recommended_bet_display = 16 * fibonacci_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 0
+            recommended_multiplier_display = fibonacci_multiplier_func(consecutive_losses_recent) if not should_pause_for_display else 1
             
             # 在结果文本框显示汇总
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
@@ -4718,29 +4754,29 @@ class LuckyNumberGUI:
                 result_display += f"│  🛡️ 止损优化策略      ROI:{stop_loss_result['roi']:>+7.2f}% 收益:{stop_loss_result['total_profit']:>+8.2f}元 最大投{stop_loss_result['max_bet']:>6.0f}元│\n"
             
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  🏆 详细分析策略: 马丁格尔倍投 + 3期止损                                  │\n"
+            result_display += f"│  🏆 详细分析策略: 斐波那契倍投 + 3期止损                                  │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  总投入: {martingale_result['total_investment']:.2f}元                                                │\n"
-            result_display += f"│  总收益: {martingale_result['total_profit']:>+9.2f}元                                             │\n"
-            result_display += f"│  投资回报率: {martingale_result['roi']:>+6.2f}%                                                │\n"
-            result_display += f"│  最大连亏: {martingale_result['max_consecutive_losses']}期                                                │\n"
-            result_display += f"│  实际投注期数: {martingale_result['actual_betting_periods']}期 (暂停{martingale_result['paused_periods']}期)                               │\n"
-            result_display += f"│  最大单期投入: {martingale_result['max_bet']:.0f}元                                           │\n"
-            result_display += f"│  最大回撤: {martingale_result['max_drawdown']:.0f}元                                           │\n"
+            result_display += f"│  总投入: {fibonacci_result['total_investment']:.2f}元                                                │\n"
+            result_display += f"│  总收益: {fibonacci_result['total_profit']:>+9.2f}元                                             │\n"
+            result_display += f"│  投资回报率: {fibonacci_result['roi']:>+6.2f}%                                                │\n"
+            result_display += f"│  最大连亏: {fibonacci_result['max_consecutive_losses']}期                                                │\n"
+            result_display += f"│  实际投注期数: {fibonacci_result['actual_betting_periods']}期 (暂停{fibonacci_result['paused_periods']}期)                               │\n"
+            result_display += f"│  最大单期投入: {fibonacci_result['max_bet']:.0f}元                                           │\n"
+            result_display += f"│  最大回撤: {fibonacci_result['max_drawdown']:.0f}元                                           │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += "│  🎯 下期投注建议（马丁格尔倍投 + 3期止损）                               │\n"
+            result_display += "│  🎯 下期投注建议（斐波那契倍投 + 3期止损）                               │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  预测TOP4: {', '.join(next_top4):<56}│\n"
             result_display += f"│  选择模型: {next_result['selected_model']:<56}│\n"
             result_display += f"│  最近连亏: {consecutive_losses_recent}期                                                        │\n"
-            result_display += f"│  推荐策略: 马丁格尔倍投 + 3期止损                                        │\n"
+            result_display += f"│  推荐策略: 斐波那契倍投 + 3期止损                                        │\n"
             
             # 根据止损状态显示不同建议
             if should_pause_for_display:
                 result_display += "│  ⚠️  止损状态: 暂停投注（连续3期失败）                                   │\n"
                 result_display += "│  🛡️ 投注建议: 等待命中（重置倍数）或连续错5期（继续倍数）后自动恢复            │\n"
             else:
-                result_display += f"│  马丁格尔倍数: {recommended_multiplier_display}倍 (2^{consecutive_losses_recent})                                       │\n"
+                result_display += f"│  斐波那契倍数: {recommended_multiplier_display}倍                                              │\n"
                 result_display += f"│  建议投注: {recommended_bet_display:.0f}元 (每个生肖{recommended_bet_display/4:.0f}元)                        │\n"
                 result_display += f"│  如果命中: +{47*recommended_multiplier_display - recommended_bet_display:.0f}元 ✓                                       │\n"
                 result_display += f"│  如果未中: -{recommended_bet_display:.0f}元 ✗                                              │\n"
@@ -4758,6 +4794,365 @@ class LuckyNumberGUI:
             
         except Exception as e:
             error_msg = f"生肖TOP4投注策略分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+    
+    def compare_top15_vs_top4(self):
+        """对比TOP15和生肖TOP4的最近100期中奖情况"""
+        try:
+            from datetime import datetime
+            from ensemble_zodiac_predictor import EnsembleZodiacPredictor
+            from top15_predictor import Top15Predictor
+            
+            self.log_output(f"\n{'='*120}\n")
+            self.log_output(f"📊 TOP15 vs 生肖TOP4 对比分析 - 最近100期中奖对比\n")
+            self.log_output(f"{'='*120}\n")
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+            
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            
+            if len(df) < 100:
+                messagebox.showwarning("警告", "数据不足100期，无法进行对比分析")
+                return
+            
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
+            self.log_output(f"对比期数: 最近100期\n\n")
+            
+            # 分析最近100期
+            test_periods = min(100, len(df))
+            start_idx = len(df) - test_periods
+            
+            self.log_output(f"{'='*120}\n")
+            self.log_output("第一步：生成TOP15和生肖TOP4的历史预测\n")
+            self.log_output(f"{'='*120}\n\n")
+            
+            # 创建预测器
+            top15_predictor = Top15Predictor()
+            top4_predictor = EnsembleZodiacPredictor()
+            
+            # 存储预测结果和中奖情况
+            comparison_data = []
+            
+            self.log_output("正在生成每期的预测结果...\n")
+            
+            for i in range(start_idx, len(df)):
+                # 获取当期数据
+                current_row = df.iloc[i]
+                date = current_row['date']
+                actual_number = current_row['number']
+                actual_animal = current_row['animal']
+                
+                # TOP15预测（使用i之前的数据）
+                train_numbers = df.iloc[:i]['number'].values
+                top15_analysis = top15_predictor.get_analysis(train_numbers)
+                top15_pred = top15_analysis['top15']
+                top15_hit = actual_number in top15_pred
+                
+                # 生肖TOP4预测
+                train_animals = [str(a).strip() for a in df['animal'].iloc[:i].tolist()]
+                top4_result = top4_predictor.predict_from_history(train_animals, top_n=5, debug=False)
+                top4_pred = top4_result['top4']
+                top4_hit = actual_animal in top4_pred
+                
+                # 记录对比数据
+                comparison_data.append({
+                    'date': date,
+                    'actual_number': actual_number,
+                    'actual_animal': actual_animal,
+                    'top15_pred': top15_pred,
+                    'top15_hit': top15_hit,
+                    'top4_pred': top4_pred,
+                    'top4_hit': top4_hit,
+                    'both_hit': top15_hit and top4_hit
+                })
+                
+                if (i - start_idx + 1) % 10 == 0:
+                    self.log_output(f"  已处理 {i - start_idx + 1}/{test_periods} 期...\n")
+            
+            self.log_output(f"\n✅ 预测生成完成！共 {len(comparison_data)} 期\n\n")
+            
+            # 计算统计数据
+            top15_hits = sum(1 for d in comparison_data if d['top15_hit'])
+            top4_hits = sum(1 for d in comparison_data if d['top4_hit'])
+            both_hits = sum(1 for d in comparison_data if d['both_hit'])
+            both_miss = sum(1 for d in comparison_data if not d['top15_hit'] and not d['top4_hit'])
+            only_one_hit = sum(1 for d in comparison_data if (d['top15_hit'] or d['top4_hit']) and not d['both_hit'])
+            
+            top15_hit_rate = top15_hits / len(comparison_data) * 100
+            top4_hit_rate = top4_hits / len(comparison_data) * 100
+            both_hit_rate = both_hits / len(comparison_data) * 100
+            both_miss_rate = both_miss / len(comparison_data) * 100
+            only_one_rate = only_one_hit / len(comparison_data) * 100
+            
+            # 输出统计汇总
+            self.log_output(f"{'='*120}\n")
+            self.log_output("第二步：统计汇总\n")
+            self.log_output(f"{'='*120}\n\n")
+            
+            self.log_output(f"【TOP15预测统计】\n")
+            self.log_output(f"  总期数: {len(comparison_data)}\n")
+            self.log_output(f"  命中次数: {top15_hits}\n")
+            self.log_output(f"  命中率: {top15_hit_rate:.2f}%\n")
+            self.log_output(f"  投注成本: 每期15元 (15个号×1元)\n")
+            self.log_output(f"  命中奖励: 47元\n\n")
+            
+            self.log_output(f"【生肖TOP4预测统计】\n")
+            self.log_output(f"  总期数: {len(comparison_data)}\n")
+            self.log_output(f"  命中次数: {top4_hits}\n")
+            self.log_output(f"  命中率: {top4_hit_rate:.2f}%\n")
+            self.log_output(f"  投注成本: 每期16元 (4个生肖×4元)\n")
+            self.log_output(f"  命中奖励: 47元\n\n")
+            
+            self.log_output(f"【组合命中情况统计】\n")
+            self.log_output(f"  两种都中: {both_hits}期 ({both_hit_rate:.2f}%) 🌟\n")
+            self.log_output(f"  两种都未中: {both_miss}期 ({both_miss_rate:.2f}%) 💔\n")
+            self.log_output(f"  仅1个方案中: {only_one_hit}期 ({only_one_rate:.2f}%)\n")
+            self.log_output(f"    - 仅TOP15中: {sum(1 for d in comparison_data if d['top15_hit'] and not d['top4_hit'])}期\n")
+            self.log_output(f"    - 仅TOP4中: {sum(1 for d in comparison_data if d['top4_hit'] and not d['top15_hit'])}期\n\n")
+            
+            # 输出详细对比表格
+            self.log_output(f"{'='*120}\n")
+            self.log_output("第三步：详细对比表（最近100期）\n")
+            self.log_output(f"{'='*120}\n\n")
+            
+            self.log_output(
+                f"{'日期':<12} "
+                f"{'中奖号':<6} "
+                f"{'生肖':<6} "
+                f"{'TOP15':<8} "
+                f"{'TOP15预测':<50} "
+                f"{'TOP4':<8} "
+                f"{'TOP4预测':<30} "
+                f"{'都中':<6} "
+                f"{'都未中':<8} "
+                f"{'仅1中':<8}\n"
+            )
+            self.log_output("-" * 170 + "\n")
+            
+            for data in comparison_data:
+                # 格式化TOP15预测（缩短显示）
+                top15_str = str(data['top15_pred'])
+                if len(top15_str) > 48:
+                    top15_str = top15_str[:45] + "..."
+                
+                # 格式化TOP4预测
+                top4_str = ','.join(data['top4_pred'])
+                if len(top4_str) > 28:
+                    top4_str = top4_str[:25] + "..."
+                
+                # 命中标记
+                top15_mark = "✓中" if data['top15_hit'] else "✗失"
+                top4_mark = "✓中" if data['top4_hit'] else "✗失"
+                
+                # 计算三种情况（使用is_前缀避免和统计变量冲突）
+                is_both_hit = data['both_hit']
+                is_both_miss = not data['top15_hit'] and not data['top4_hit']
+                is_only_one = (data['top15_hit'] or data['top4_hit']) and not is_both_hit
+                
+                # 三种情况标记
+                both_hit_mark = "✓✓" if is_both_hit else ""
+                both_miss_mark = "✗✗" if is_both_miss else ""
+                only_one_mark = "✓✗" if is_only_one else ""
+                
+                # 双重命中特殊标记
+                if is_both_hit:
+                    line_prefix = "🌟 "
+                elif is_both_miss:
+                    line_prefix = "💔 "
+                else:
+                    line_prefix = "   "
+                
+                self.log_output(
+                    f"{line_prefix}{str(data['date']):<12} "
+                    f"{data['actual_number']:<6} "
+                    f"{data['actual_animal']:<6} "
+                    f"{top15_mark:<8} "
+                    f"{top15_str:<50} "
+                    f"{top4_mark:<8} "
+                    f"{top4_str:<30} "
+                    f"{both_hit_mark:<6} "
+                    f"{both_miss_mark:<8} "
+                    f"{only_one_mark:<8}\n"
+                )
+            
+            self.log_output("\n说明：\n")
+            self.log_output("  🌟 = 两种投注都中\n")
+            self.log_output("  💔 = 两种投注都未中\n")
+            self.log_output("  ✓✓ = 都中  ✗✗ = 都未中  ✓✗ = 仅1个方案中\n\n")
+            
+            # 计算收益对比
+            self.log_output(f"{'='*120}\n")
+            self.log_output("第四步：收益对比分析（固定投注）\n")
+            self.log_output(f"{'='*120}\n\n")
+            
+            # TOP15收益（每期15元，命中47元）
+            top15_cost = len(comparison_data) * 15
+            top15_reward = top15_hits * 47
+            top15_profit = top15_reward - top15_cost
+            top15_roi = (top15_profit / top15_cost * 100) if top15_cost > 0 else 0
+            
+            # TOP4收益（每期16元，命中47元）
+            top4_cost = len(comparison_data) * 16
+            top4_reward = top4_hits * 47
+            top4_profit = top4_reward - top4_cost
+            top4_roi = (top4_profit / top4_cost * 100) if top4_cost > 0 else 0
+            
+            self.log_output(f"【TOP15收益】\n")
+            self.log_output(f"  总投入: {top15_cost}元\n")
+            self.log_output(f"  总奖励: {top15_reward}元\n")
+            self.log_output(f"  净收益: {top15_profit:+.2f}元\n")
+            self.log_output(f"  ROI: {top15_roi:+.2f}%\n\n")
+            
+            self.log_output(f"【生肖TOP4收益】\n")
+            self.log_output(f"  总投入: {top4_cost}元\n")
+            self.log_output(f"  总奖励: {top4_reward}元\n")
+            self.log_output(f"  净收益: {top4_profit:+.2f}元\n")
+            self.log_output(f"  ROI: {top4_roi:+.2f}%\n\n")
+            
+            # 组合投注收益（同时购买两种方案）
+            combo_cost = len(comparison_data) * (15 + 16)  # 每期31元
+            # 计算组合总奖励：都中2次奖励，仅1中1次奖励，都不中0次奖励
+            combo_reward = both_hits * 47 * 2 + only_one_hit * 47
+            combo_profit = combo_reward - combo_cost
+            combo_roi = (combo_profit / combo_cost * 100) if combo_cost > 0 else 0
+            
+            # 验证计算逻辑
+            total_periods = len(comparison_data)
+            verify_total = both_hits + only_one_hit + both_miss
+            verify_top15 = both_hits + sum(1 for d in comparison_data if d['top15_hit'] and not d['top4_hit'])
+            verify_top4 = both_hits + sum(1 for d in comparison_data if d['top4_hit'] and not d['top15_hit'])
+            
+            self.log_output(f"【组合投注收益（同时购买两种方案）】\n")
+            self.log_output(f"  每期投入: 31元 (TOP15 15元 + TOP4 16元)\n")
+            self.log_output(f"  总投入: {combo_cost}元 (= {total_periods}期 × 31元)\n")
+            self.log_output(f"  总奖励: {combo_reward}元\n")
+            self.log_output(f"    - 双重命中({both_hits}期): {both_hits * 47 * 2}元 (每期获94元, 净赚63元)\n")
+            self.log_output(f"    - 仅1个中({only_one_hit}期): {only_one_hit * 47}元 (每期获47元, 净赚16元)\n")
+            self.log_output(f"    - 都未中({both_miss}期): 0元 (每期亏损31元)\n")
+            self.log_output(f"  净收益: {combo_profit:+.2f}元 (= {combo_reward}元奖励 - {combo_cost}元成本)\n")
+            self.log_output(f"  ROI: {combo_roi:+.2f}%\n")
+            self.log_output(f"  平均每期收益: {combo_profit/len(comparison_data):+.2f}元\n\n")
+            
+            # 添加验证信息
+            self.log_output(f"【计算验证】\n")
+            self.log_output(f"  总期数验证: {both_hits} + {only_one_hit} + {both_miss} = {verify_total} (应等于{total_periods})\n")
+            self.log_output(f"  TOP15命中验证: {both_hits}(双中) + {verify_top15-both_hits}(单中) = {verify_top15} (实际{top15_hits})\n")
+            self.log_output(f"  TOP4命中验证: {both_hits}(双中) + {verify_top4-both_hits}(单中) = {verify_top4} (实际{top4_hits})\n")
+            if verify_total == total_periods and verify_top15 == top15_hits and verify_top4 == top4_hits:
+                self.log_output(f"  ✅ 统计数据验证通过！计算逻辑正确。\n")
+            else:
+                self.log_output(f"  ⚠️ 统计数据验证异常！请检查。\n")
+            self.log_output(f"  \n")
+            self.log_output(f"  组合投注收益计算:\n")
+            self.log_output(f"    奖励 = {both_hits} × 94 + {only_one_hit} × 47 = {both_hits * 94} + {only_one_hit * 47} = {combo_reward}元\n")
+            self.log_output(f"    成本 = {total_periods} × 31 = {combo_cost}元\n")
+            self.log_output(f"    净收益 = {combo_reward} - {combo_cost} = {combo_profit:+.2f}元\n\n")
+            
+            # 优势分析
+            self.log_output(f"【三种方案对比】\n")
+            
+            # 找出ROI最高的方案
+            roi_comparison = [
+                ('TOP15单独', top15_roi, top15_profit, top15_cost),
+                ('生肖TOP4单独', top4_roi, top4_profit, top4_cost),
+                ('组合投注', combo_roi, combo_profit, combo_cost)
+            ]
+            roi_comparison.sort(key=lambda x: x[1], reverse=True)
+            
+            self.log_output(f"  ROI排名：\n")
+            for rank, (name, roi, profit, cost) in enumerate(roi_comparison, 1):
+                marker = "🏆" if rank == 1 else f"{rank}."
+                self.log_output(f"    {marker} {name}: ROI {roi:+.2f}%, 净收益 {profit:+.2f}元, 成本 {cost}元\n")
+            
+            self.log_output(f"\n  ✅ 最优方案: {roi_comparison[0][0]}\n")
+            self.log_output(f"  最高ROI: {roi_comparison[0][1]:+.2f}%\n")
+            self.log_output(f"  最高收益: {roi_comparison[0][2]:+.2f}元\n\n")
+            
+            self.log_output(f"【详细对比】\n")
+            self.log_output(f"  命中率: TOP15 {top15_hit_rate:.2f}% vs TOP4 {top4_hit_rate:.2f}%\n")
+            self.log_output(f"  单期成本: TOP15 15元 vs TOP4 16元 vs 组合 31元\n")
+            self.log_output(f"  双重命中: {both_hits}期 ({both_hit_rate:.2f}%)\n")
+            self.log_output(f"  组合优势: 双重命中时获得2倍奖励(94元)\n\n")
+            
+            # 建议
+            self.log_output(f"【投注建议】\n")
+            
+            # 根据ROI最优方案给出建议
+            best_strategy = roi_comparison[0][0]
+            best_roi = roi_comparison[0][1]
+            
+            if best_strategy == '组合投注':
+                self.log_output(f"  🏆 推荐策略: 组合投注（同时购买TOP15和TOP4）\n")
+                self.log_output(f"  理由: 组合ROI最高({best_roi:+.2f}%)，双重命中时收益翻倍\n")
+                self.log_output(f"  每期投入: 31元\n")
+                self.log_output(f"  预期平均收益: {combo_profit/len(comparison_data):+.2f}元/期\n")
+                if both_hit_rate >= 20:
+                    self.log_output(f"  ✓ 双重命中率{both_hit_rate:.2f}%，组合优势明显\n")
+            elif best_strategy == 'TOP15单独':
+                self.log_output(f"  🏆 推荐策略: TOP15单独投注\n")
+                self.log_output(f"  理由: 单独投注ROI最高({best_roi:+.2f}%)\n")
+                self.log_output(f"  每期投入: 15元\n")
+                self.log_output(f"  命中率: {top15_hit_rate:.2f}%\n")
+            else:
+                self.log_output(f"  🏆 推荐策略: 生肖TOP4单独投注\n")
+                self.log_output(f"  理由: 性价比最高，ROI {best_roi:+.2f}%\n")
+                self.log_output(f"  每期投入: 16元（成本最低）\n")
+                self.log_output(f"  命中率: {top4_hit_rate:.2f}%\n")
+            
+            # 组合投注适用场景
+            self.log_output(f"\n  【组合投注适用场景】\n")
+            
+            # 计算盈亏平衡点
+            # 平均每期奖励 = 双中率×94 + 单中率×47 >= 31（盈亏平衡）
+            avg_reward_per_period = (both_hit_rate/100) * 94 + (only_one_rate/100) * 47
+            breakeven_diff = avg_reward_per_period - 31
+            
+            self.log_output(f"  盈亏平衡分析:\n")
+            self.log_output(f"    每期平均奖励 = {both_hit_rate:.2f}% × 94 + {only_one_rate:.2f}% × 47 = {avg_reward_per_period:.2f}元\n")
+            self.log_output(f"    每期成本 = 31元\n")
+            self.log_output(f"    差额 = {breakeven_diff:+.2f}元/期\n")
+            if breakeven_diff >= 0:
+                self.log_output(f"    ✅ 平均每期盈利，组合投注可行\n")
+            else:
+                self.log_output(f"    ❌ 平均每期亏损，需提高命中率\n")
+            self.log_output(f"  \n")
+            
+            if both_hit_rate >= 25:
+                self.log_output(f"  ✓ 双重命中率高({both_hit_rate:.2f}%)，非常适合组合投注\n")
+            elif both_hit_rate >= 15:
+                self.log_output(f"  ⚠ 双重命中率中等({both_hit_rate:.2f}%)，可考虑组合投注\n")
+            else:
+                self.log_output(f"  ✗ 双重命中率较低({both_hit_rate:.2f}%)，建议单独投注\n")
+            
+            if combo_roi > 0:
+                self.log_output(f"  ✓ 组合投注ROI为正({combo_roi:+.2f}%)，长期可盈利\n")
+            else:
+                self.log_output(f"  ✗ 组合投注ROI为负({combo_roi:+.2f}%)，当前命中率不足，不建议使用\n")
+                # 计算需要的最低命中率
+                needed_avg_reward = 31  # 盈亏平衡
+                if both_hit_rate > 0:
+                    # 保持当前双中率不变，计算需要的总命中率
+                    current_dual_contribution = (both_hit_rate/100) * 94
+                    needed_single_contribution = needed_avg_reward - current_dual_contribution
+                    if needed_single_contribution > 0:
+                        needed_single_rate = needed_single_contribution / 47 * 100
+                        self.log_output(f"    提示：保持双中率{both_hit_rate:.2f}%，单中率需达到{needed_single_rate:.2f}%才能盈亏平衡\n")
+                else:
+                    needed_rate = needed_avg_reward / 47 * 100
+                    self.log_output(f"    提示：若无双中，单中率需达到{needed_rate:.2f}%才能盈亏平衡\n")
+            
+            self.log_output(f"\n{'='*120}\n")
+            self.log_output("✅ TOP15 vs 生肖TOP4对比分析完成！\n")
+            self.log_output(f"{'='*120}\n\n")
+            
+        except Exception as e:
+            error_msg = f"对比分析失败: {str(e)}"
             self.log_output(f"\n❌ {error_msg}\n")
             messagebox.showerror("错误", error_msg)
             import traceback
