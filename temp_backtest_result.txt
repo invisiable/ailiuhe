@@ -1,0 +1,34 @@
+﻿================================================================================
+ 生肖TOP4投注策略回测 - 集成优化系统（带自动恢复止损）
+================================================================================
+回测期数: 200 期
+基础投注: 16元/期
+命中奖励: 45元
+止损规则: 连续失败 3 期暂停
+恢复规则: 预测命中 OR 连续暂停 8 期后自动恢复
+================================================================================
+
+python : Traceback (most recent call last):
+所在位置 行:1 字符: 1
++ python backtest_ensemble_top4_200periods_auto_resume.py 2>&1 | Out-Fi ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last) 
+   ::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "D:\AiLiuHe\backtest_ensemble_top4_200periods_auto_resume.py", line 190,
+ in <module>
+    backtest_stop_loss_auto_resume(periods=200)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "D:\AiLiuHe\backtest_ensemble_top4_200periods_auto_resume.py", line 146,
+ in backtest_stop_loss_auto_resume
+    print(f"第{i+1:3d}期 {current_date} | 预测: {','.join(top4_animals):20s} | 实际: 
+{actual_animal:2s} | "
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          f"投注: {current_bet:4d}元 | {status:40s} | 余额: {total_profit:+6.0f}元 | 
+ROI: {roi:+6.2f}%")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 65:
+ illegal multibyte sequence
