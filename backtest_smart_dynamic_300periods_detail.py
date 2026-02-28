@@ -131,14 +131,14 @@ def backtest_smart_dynamic_detail():
     
     # 初始化预测器和策略
     predictor = PreciseTop15Predictor()
-    strategy = SmartDynamicBettingStrategy(
+    strategy = SmartDynamicStrategy(
         base_bet=15,
         win_reward=47,
         lookback=12,
-        boost_threshold=0.35,
-        reduce_threshold=0.20,
-        boost_multiplier=1.2,
-        reduce_multiplier=0.8,
+        good_thresh=0.35,
+        bad_thresh=0.20,
+        boost_mult=1.2,
+        reduce_mult=0.8,
         max_multiplier=10
     )
     

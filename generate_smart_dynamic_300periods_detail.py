@@ -1,7 +1,7 @@
 """
 智能动态倍投策略 - 最近300期详细投注记录
-参数：回看12期，命中率>=0.35增强1.2倍，<=0.20降低0.8倍，最大10倍限制
-使用与compare_all_strategies_max10x.py完全相同的逻辑
+参数：回看12期，命中率>=0.35增强1.5倍，<=0.20降低0.5倍，最大10倍限制
+测试更激进的参数组合：增强1.5倍（原1.2）、降低0.5倍（原0.8）
 """
 
 import pandas as pd
@@ -77,18 +77,15 @@ class SmartDynamicStrategy(BettingStrategyBase):
         return sum(self.recent_results) / len(self.recent_results)
     
     def process_period(self, prediction, actual):
-        """处理一期投注（与compare脚本完全相同的逻辑）"""
+        """处理一期投注（修复后的正确时序：先计算倍数，再更新历史）"""
         hit = actual in prediction
         
-        # 先添加结果到历史
-        self.recent_results.append(1 if hit else 0)
-        if len(self.recent_results) > self.lookback:
-            self.recent_results.pop(0)
+        # ===== 【修复】先计算倍数（基于投注前的历史），再更新历史 =====
         
         # 获取基础倍数
         base_mult = self.get_base_multiplier()
         
-        # 根据最近命中率计算动态倍数
+        # 根据最近命中率计算动态倍数（使用投注前的历史数据）
         if len(self.recent_results) >= self.lookback:
             rate = self.get_recent_rate()
             if rate >= self.good_thresh:
@@ -102,6 +99,11 @@ class SmartDynamicStrategy(BettingStrategyBase):
         
         # 更新余额和统计
         bet, win, profit = self.update_balance(hit, multiplier)
+        
+        # 添加结果到历史（在投注和结算之后）
+        self.recent_results.append(1 if hit else 0)
+        if len(self.recent_results) > self.lookback:
+            self.recent_results.pop(0)
         
         return {
             'multiplier': multiplier,
@@ -139,8 +141,8 @@ def backtest_smart_dynamic_detail():
         lookback=12,
         good_thresh=0.35,
         bad_thresh=0.20,
-        boost_mult=1.2,
-        reduce_mult=0.8,
+        boost_mult=1.5,  # 从1.2提升到1.5（更激进增强）
+        reduce_mult=0.5,  # 从0.8降低到0.5（更激进降低）
         max_multiplier=10
     )
     
@@ -163,8 +165,11 @@ def backtest_smart_dynamic_detail():
         else:
             predicted_top15 = list(range(1, 16))
         
-        # 处理这一期（使用与compare脚本相同的逻辑）
+        # 处理这一期（使用修复后的正确时序）
         result = strategy.process_period(predicted_top15, actual_number)
+        
+        # 更新预测器性能跟踪（与GUI保持一致）
+        predictor.update_performance(predicted_top15, actual_number)
         
         # 检查是否触及10倍上限
         hit_limit = (result['multiplier'] >= 10)
@@ -206,8 +211,8 @@ def backtest_smart_dynamic_detail():
     print(f"  基础投注: 15元")
     print(f"  中奖奖励: 47元")
     print(f"  回看期数: 12期")
-    print(f"  增强阈值: 命中率>=35% → 倍数×1.2")
-    print(f"  降低阈值: 命中率<=20% → 倍数×0.8")
+    print(f"  增强阈值: 命中率>=35% → 倍数×1.5（更激进）")
+    print(f"  降低阈值: 命中率<=20% → 倍数×0.5（更激进）")
     print(f"  最大倍数: 10倍")
     print(f"\n投注结果:")
     print(f"  命中次数: {hits}/{test_periods}")
