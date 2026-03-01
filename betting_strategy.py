@@ -5,7 +5,7 @@
 
 import pandas as pd
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 
 class BettingStrategy:
@@ -390,7 +390,8 @@ class BettingStrategy:
                          predictions: List[List[int]], 
                          actuals: List[int],
                          strategy_type: str = 'martingale',
-                         hit_rate: float = 0.5) -> Dict:
+                         hit_rate: float = 0.5,
+                         pause_config: Optional[Dict[str, int]] = None) -> Dict:
         """
         模拟投注策略效果
         
@@ -424,8 +425,42 @@ class BettingStrategy:
         current_balance = 0
         
         history = []
+        use_pause_rule = pause_config is not None
+        pause_trigger_hits = 0
+        pause_length = 0
+        pause_cooldown = 0
+        pause_trigger_count = 0
+        paused_hit_count = 0
+        pause_periods = 0
+        hits_since_pause_trigger = 0
+        if use_pause_rule:
+            pause_trigger_hits = max(1, pause_config.get('trigger_hits', 1))
+            pause_length = max(1, pause_config.get('pause_length', 1))
         
         for i, (pred_top15, actual) in enumerate(zip(predictions, actuals)):
+            if use_pause_rule and pause_cooldown > 0:
+                pause_cooldown -= 1
+                pause_periods += 1
+                is_hit_when_paused = actual in pred_top15
+                if is_hit_when_paused:
+                    paused_hit_count += 1
+                history.append({
+                    'period': i + 1,
+                    'prediction': pred_top15,
+                    'actual': actual,
+                    'is_hit': is_hit_when_paused,
+                    'multiplier': 0,
+                    'bet_amount': 0,
+                    'consecutive_losses': consecutive_losses,
+                    'consecutive_wins': consecutive_wins,
+                    'skipped': True,
+                    'pause_remaining': pause_cooldown,
+                    'result': 'SKIP',
+                    'profit': 0.0,
+                    'total_profit': total_profit,
+                    'current_balance': current_balance
+                })
+                continue
             # 选择策略计算投注金额
             if strategy_type == 'fixed':
                 multiplier, bet_amount = self.calculate_fixed_bet()
@@ -496,6 +531,12 @@ class BettingStrategy:
                 period_result['reward'] = reward
                 period_result['profit'] = profit
                 period_result['result'] = 'WIN'
+                if use_pause_rule:
+                    hits_since_pause_trigger += 1
+                    if pause_trigger_hits == 1 or hits_since_pause_trigger >= pause_trigger_hits:
+                        pause_cooldown = pause_length
+                        pause_trigger_count += 1
+                        hits_since_pause_trigger = 0
                 
             else:
                 # 未命中：亏损
@@ -514,6 +555,8 @@ class BettingStrategy:
                 period_result['loss'] = loss
                 period_result['profit'] = -loss
                 period_result['result'] = 'LOSS'
+                if use_pause_rule:
+                    hits_since_pause_trigger = 0
             
             period_result['total_profit'] = total_profit
             period_result['current_balance'] = current_balance
@@ -538,7 +581,12 @@ class BettingStrategy:
             'max_drawdown': max_drawdown,
             'final_balance': current_balance,
             'roi': roi,
-            'history': history
+            'history': history,
+            'pause_stats': {
+                'pause_trigger_count': pause_trigger_count,
+                'pause_periods': pause_periods,
+                'paused_hit_count': paused_hit_count
+            } if use_pause_rule else None
         }
     
     def recommend_strategy(self, 

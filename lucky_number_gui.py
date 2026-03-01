@@ -3202,8 +3202,11 @@ class LuckyNumberGUI:
             best_name = '斐波那契（平衡）'
             best_result = betting.simulate_strategy(predictions_top15, actuals, best_strategy_type, hit_rate=actual_hit_rate)
             
-            # 将日期信息添加到历史记录中
+            # 将日期信息添加到历史记录中（基准与暂停策略）
             for i, period_data in enumerate(best_result['history']):
+                if i < len(dates):
+                    period_data['date'] = dates[i]
+            for i, period_data in enumerate(pause_result['history']):
                 if i < len(dates):
                     period_data['date'] = dates[i]
             
@@ -3237,6 +3240,8 @@ class LuckyNumberGUI:
             self.log_output(f"  最大回撤: {best_result['max_drawdown']:.2f}元\n")
             self.log_output(f"  最终余额: {best_result['final_balance']:+.2f}元\n\n")
             
+            pause_variant = simulate_with_pause(results, pause_length=1)
+
             # 显示最近300期详情
             self.log_output(f"【最近300期详情】\n")
             self.log_output(f"{'日期':<12} {'中奖号码':<8} {'预测号码':<50} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
@@ -3634,6 +3639,107 @@ class LuckyNumberGUI:
                         'profit': profit,
                         'recent_rate': self.get_recent_rate()
                     }
+
+            def simulate_with_pause(sequence, pause_length=1):
+                """在命中序列上附加命中1停1期逻辑"""
+                pause_strategy = SmartDynamicStrategy(config)
+                pause_history = []
+                pause_remaining = 0
+                pause_trigger_count = 0
+                paused_hit_count = 0
+                pause_periods = 0
+                consecutive_losses = 0
+                max_consecutive_losses = 0
+                hit_10x_count = 0
+                for entry in sequence:
+                    period = entry['period']
+                    date = entry['date']
+                    actual = entry['actual']
+                    predictions = entry['predictions']
+                    hit = entry['hit']
+                    pred_str = str(predictions[:5]) + "..."
+                    if pause_remaining > 0:
+                        pause_remaining -= 1
+                        pause_periods += 1
+                        if hit:
+                            paused_hit_count += 1
+                        pause_history.append({
+                            'period': period,
+                            'date': date,
+                            'actual': actual,
+                            'predictions': predictions,
+                            'predictions_str': pred_str,
+                            'hit': hit,
+                            'multiplier': 0,
+                            'bet': 0,
+                            'profit': 0,
+                            'cumulative_profit': pause_strategy.balance,
+                            'recent_rate': pause_strategy.get_recent_rate(),
+                            'hit_limit': False,
+                            'fib_index': pause_strategy.fib_index,
+                            'result': 'SKIP',
+                            'paused': True,
+                            'pause_remaining': pause_remaining
+                        })
+                        continue
+                    result = pause_strategy.process_period(hit)
+                    profit = result['profit']
+                    status = 'WIN' if hit else 'LOSS'
+                    hit_limit = result['multiplier'] >= config['max_multiplier']
+                    if hit:
+                        pause_remaining = pause_length
+                        pause_trigger_count += 1
+                        consecutive_losses = 0
+                    else:
+                        consecutive_losses += 1
+                        max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+                    if hit_limit:
+                        hit_10x_count += 1
+                    pause_history.append({
+                        'period': period,
+                        'date': date,
+                        'actual': actual,
+                        'predictions': predictions,
+                        'predictions_str': pred_str,
+                        'hit': hit,
+                        'multiplier': result['multiplier'],
+                        'bet': result['bet'],
+                        'profit': profit,
+                        'cumulative_profit': pause_strategy.balance,
+                        'recent_rate': result['recent_rate'],
+                        'hit_limit': hit_limit,
+                        'fib_index': pause_strategy.fib_index,
+                        'result': status,
+                        'paused': False,
+                        'pause_remaining': pause_remaining
+                    })
+                total_periods = len(sequence)
+                total_cost = pause_strategy.total_bet
+                total_profit = pause_strategy.balance
+                total_reward = pause_strategy.total_win
+                bet_periods = total_periods - pause_periods
+                wins = sum(1 for h in pause_history if h['result'] == 'WIN')
+                losses = sum(1 for h in pause_history if h['result'] == 'LOSS')
+                roi_pause = (total_profit / total_cost * 100) if total_cost > 0 else 0
+                hit_rate_pause = wins / bet_periods if bet_periods > 0 else 0
+                return {
+                    'history': pause_history,
+                    'total_periods': total_periods,
+                    'bet_periods': bet_periods,
+                    'pause_periods': pause_periods,
+                    'paused_hit_count': paused_hit_count,
+                    'pause_trigger_count': pause_trigger_count,
+                    'total_cost': total_cost,
+                    'total_reward': total_reward,
+                    'total_profit': total_profit,
+                    'roi': roi_pause,
+                    'max_drawdown': pause_strategy.max_drawdown,
+                    'wins': wins,
+                    'losses': losses,
+                    'hit_rate': hit_rate_pause,
+                    'max_consecutive_losses': max_consecutive_losses,
+                    'hit_10x_count': hit_10x_count
+                }
             
             # 初始化策略
             strategy = SmartDynamicStrategy(config)
@@ -3690,6 +3796,7 @@ class LuckyNumberGUI:
             roi = (total_profit / total_cost * 100) if total_cost > 0 else 0
             hits = sum(1 for r in results if r['hit'])
             hit_rate = hits / len(results) if results else 0
+            pause_variant = simulate_with_pause(results, pause_length=1)
             
             # 连续统计
             max_consecutive_wins = 0
@@ -3754,6 +3861,58 @@ class LuckyNumberGUI:
                 )
             
             self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP15=显示前5个 | 倍数=投注倍数 | 12期率=最近12期命中率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
+
+            # 追加命中1停1期版本的最近300期详情
+            pause_history = pause_variant['history'][-300:] if len(pause_variant['history']) > 300 else pause_variant['history']
+            if pause_history:
+                self.log_output(f"{'='*70}\n")
+                self.log_output(f"最近300期详情（命中1停1期 + 暂停状态）\n")
+                self.log_output(f"{'='*70}\n")
+                self.log_output(f"展示期数：最近{len(pause_history)}期（含暂停期）\n")
+                self.log_output(f"暂停期间命中{pause_variant['paused_hit_count']}次，触发{pause_variant['pause_trigger_count']}次\n\n")
+                self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'暂停':<6}{'余停':<6}\n")
+                self.log_output(f"{'-'*120}\n")
+                cumulative_pause = 0
+                for entry in pause_history:
+                    period = entry.get('period', 0)
+                    date = entry.get('date', '')
+                    actual = entry.get('actual', 'N/A')
+                    pred_str = entry.get('predictions_str') or str(entry.get('predictions', [])[:5]) + "..."
+                    multiplier = entry.get('multiplier', 0)
+                    bet_amount = entry.get('bet', 0)
+                    result = entry.get('result', 'SKIP')
+                    profit = entry.get('profit', 0)
+                    cumulative_pause += profit
+                    paused_flag = "暂停" if entry.get('paused') else ""
+                    pause_remaining = entry.get('pause_remaining', 0)
+                    hit_mark = '✓' if entry.get('hit') else ('-' if result == 'SKIP' else '✗')
+                    self.log_output(
+                        f"{period:<8}{date:<12}{actual:<6}{pred_str:<25}"
+                        f"{multiplier:<8.2f}{bet_amount:<8.0f}{hit_mark:<6}"
+                        f"{profit:+10.0f}  {cumulative_pause:+12.0f}  {paused_flag:<6}{pause_remaining:<6}\n"
+                    )
+                self.log_output("\n")
+
+            pause_roi = pause_variant['roi']
+            pause_profit = pause_variant['total_profit']
+            pause_drawdown = pause_variant['max_drawdown']
+            roi_delta = pause_roi - roi
+            profit_delta = pause_profit - total_profit
+            drawdown_delta = strategy.max_drawdown - pause_drawdown
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"附加验证：命中1停1期策略\n")
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"  实际投注: {pause_variant['bet_periods']}期，暂停: {pause_variant['pause_periods']}期\n")
+            self.log_output(f"  ROI: {pause_roi:+.2f}% (相对基准{roi_delta:+.2f}%)\n")
+            self.log_output(f"  净收益: {pause_profit:+.0f}元 (相对基准{profit_delta:+.0f}元)\n")
+            self.log_output(f"  最大回撤: {pause_drawdown:.0f}元 (改善{drawdown_delta:+.0f}元)\n")
+            self.log_output(f"  暂停触发: {pause_variant['pause_trigger_count']}次，暂停期漏中: {pause_variant['paused_hit_count']}次\n")
+            improvement_comment = "✅ 明显降低回撤" if drawdown_delta > 0 else "⚠️ 回撤未改善"
+            if roi_delta >= 0:
+                improvement_comment += "，ROI略有提升"
+            else:
+                improvement_comment += f"，ROI回落{abs(roi_delta):.2f}%"
+            self.log_output(f"  综合结论: {improvement_comment}\n\n")
             
             # 输出核心统计数据
             self.log_output(f"{'='*70}\n")
@@ -4092,13 +4251,39 @@ class LuckyNumberGUI:
             self.log_output(f"  最大连续亏损: {best_result['max_consecutive_losses']}期 ✨\n")
             self.log_output(f"  最大回撤: {best_result['max_drawdown']:.2f}元\n")
             self.log_output(f"  最终余额: {best_result['final_balance']:+.2f}元\n\n")
+
+            # 新增：命中1次停1期策略（斐波那契基础上叠加暂停规则）
+            pause_result = betting.simulate_strategy(
+                predictions_top15,
+                actuals,
+                best_strategy_type,
+                hit_rate=actual_hit_rate,
+                pause_config={
+                    'trigger_hits': 1,
+                    'pause_length': 1
+                }
+            )
+            pause_stats = pause_result.get('pause_stats') or {}
+            pause_paused_periods = pause_stats.get('pause_periods', 0)
+            pause_trigger_count = pause_stats.get('pause_trigger_count', 0)
+            pause_paused_hits = pause_stats.get('paused_hit_count', 0)
+            pause_bet_periods = pause_result['total_periods'] - pause_paused_periods
+            pause_drawdown = abs(pause_result['max_drawdown'])
+            baseline_drawdown_value = abs(best_result['max_drawdown'])
+            self.log_output(f"【新增策略】命中1次停1期（Fibonacci）\n")
+            self.log_output(f"  实际投注: {pause_bet_periods}期，暂停: {pause_paused_periods}期\n")
+            self.log_output(f"  ROI: {pause_result['roi']:+.2f}% (相对基准{pause_result['roi'] - best_result['roi']:+.2f}%)\n")
+            self.log_output(f"  净收益: {pause_result['total_profit']:+.2f}元\n")
+            self.log_output(f"  最大回撤: {pause_drawdown:.2f}元 (改善{baseline_drawdown_value - pause_drawdown:+.2f}元)\n")
+            self.log_output(f"  暂停触发: {pause_trigger_count}次，暂停期间漏中: {pause_paused_hits}次\n\n")
             
-            # 显示最近300期详情
-            self.log_output(f"【最近300期详情】\n")
+            # 显示最近300期详情（命中1停1期策略）
+            self.log_output(f"【最近300期详情 - 命中1停1期策略】\n")
             self.log_output(f"{'日期':<12} {'中奖号码':<8} {'预测号码':<50} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
             self.log_output("-" * 140 + "\n")
             
-            for period in best_result['history'][-300:]:
+            detail_history = pause_result['history']
+            for period in detail_history[-300:]:
                 pred_str = str(period.get('prediction', []))
                 if len(pred_str) > 48:
                     pred_str = pred_str[:45] + "..."
@@ -4109,8 +4294,8 @@ class LuckyNumberGUI:
                     f"{str(date_str):<12} "
                     f"{period.get('actual', 'N/A'):<8} "
                     f"{pred_str:<50} "
-                    f"{period['multiplier']:<6} "
-                    f"{period['bet_amount']:<10.2f} "
+                    f"{period.get('multiplier', 0):<6} "
+                    f"{period.get('bet_amount', 0):<10.2f} "
                     f"{period['result']:<6} "
                     f"{period['profit']:>+12.2f} "
                     f"{period['total_profit']:>12.2f}\n"
@@ -4287,6 +4472,8 @@ class LuckyNumberGUI:
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  ✨ 最大连续不中: {best_result['max_consecutive_losses']}期（显著降低风险）              │\n"
             result_display += f"│  ✨ ROI: {best_result['roi']:+.2f}%（高于普通版）                           │\n"
+            result_display += f"│  🆕 命中1停1期: ROI {pause_result['roi']:+.2f}% 回撤{pause_drawdown:>6.0f}元               │\n"
+            result_display += f"│     实投{pause_bet_periods}期/暂停{pause_paused_periods}期, 触发{pause_trigger_count}次            │\n"
             result_display += f"│  ✨ 总收益: {best_result['total_profit']:+.2f}元                                    │\n"
             result_display += "├─────────────────────────────────────────────────────────────────┤\n"
             result_display += "│  📈 使用策略                                                    │\n"
