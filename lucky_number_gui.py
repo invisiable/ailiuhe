@@ -486,7 +486,7 @@ class LuckyNumberGUI:
         # 说明标签（放在按钮下方）
         ttk.Label(
             pred_frame,
-            text="💡 投注说明：生肖TOP5(20元)｜生肖TOP4(16元)｜TOP15(15元)｜最优智能⭐(ROI 24%,回撤-65%)",
+            text="💡 投注说明：生肖TOP5(20元)｜生肖TOP4(16元)｜TOP15(15元)｜最优智能⭐(ROI 18.5%,回撤-50%,含暂停策略)",
             font=('', 9, 'bold'),
             foreground="darkblue"
         ).grid(row=5, column=0, columnspan=4, sticky=tk.W, padx=5, pady=(0, 5))
@@ -3202,11 +3202,8 @@ class LuckyNumberGUI:
             best_name = '斐波那契（平衡）'
             best_result = betting.simulate_strategy(predictions_top15, actuals, best_strategy_type, hit_rate=actual_hit_rate)
             
-            # 将日期信息添加到历史记录中（基准与暂停策略）
+            # 将日期信息添加到历史记录中
             for i, period_data in enumerate(best_result['history']):
-                if i < len(dates):
-                    period_data['date'] = dates[i]
-            for i, period_data in enumerate(pause_result['history']):
                 if i < len(dates):
                     period_data['date'] = dates[i]
             
@@ -3240,8 +3237,6 @@ class LuckyNumberGUI:
             self.log_output(f"  最大回撤: {best_result['max_drawdown']:.2f}元\n")
             self.log_output(f"  最终余额: {best_result['final_balance']:+.2f}元\n\n")
             
-            pause_variant = simulate_with_pause(results, pause_length=1)
-
             # 显示最近300期详情
             self.log_output(f"【最近300期详情】\n")
             self.log_output(f"{'日期':<12} {'中奖号码':<8} {'预测号码':<50} {'倍数':<6} {'投注':<10} {'结果':<6} {'盈亏':<12} {'累计':<12}\n")
@@ -3536,14 +3531,15 @@ class LuckyNumberGUI:
             }
             
             self.log_output(f"\n{'='*70}\n")
-            self.log_output(f"🏆 最优智能动态倍投策略分析 v3.1\n")
+            self.log_output(f"🏆 最优智能动态倍投策略分析 v3.2（含暂停策略）\n")
             self.log_output(f"{'='*70}\n")
             
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.log_output(f"分析时间: {current_time}\n")
-            self.log_output(f"策略版本: {config['name']}（激进组合，全面优化）\n")
-            self.log_output(f"核心参数: 窗口12期 | 增强≥35%×1.5 | 降低≤20%×0.5\n")
-            self.log_output(f"实战表现: ROI 13.56% | 回撤692元 | 净利润+1468元 | 触及10x仅7次\n\n")
+            self.log_output(f"策略版本: {config['name']}（激进组合，含命中1停1期暂停逻辑）\n")
+            self.log_output(f"核心参数: 窗口12期 | 增强≥35%×1.5 | 降低≤20%×0.5 | 命中后暂停1期\n")
+            self.log_output(f"基础表现: ROI 12.70% | 回撤742元 | 净利润+1374元\n")
+            self.log_output(f"暂停策略: ROI 18.46% | 回撤371元 | 净利润+1476元 ⭐推荐\n\n")
             
             # 读取数据
             file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
@@ -3663,6 +3659,7 @@ class LuckyNumberGUI:
                         pause_periods += 1
                         if hit:
                             paused_hit_count += 1
+                        
                         pause_history.append({
                             'period': period,
                             'date': date,
@@ -3682,6 +3679,9 @@ class LuckyNumberGUI:
                             'pause_remaining': pause_remaining
                         })
                         continue
+                    # 保存投注前的fib_index（这是本期投注实际使用的索引）
+                    betting_fib_index = pause_strategy.fib_index
+                    
                     result = pause_strategy.process_period(hit)
                     profit = result['profit']
                     status = 'WIN' if hit else 'LOSS'
@@ -3708,7 +3708,7 @@ class LuckyNumberGUI:
                         'cumulative_profit': pause_strategy.balance,
                         'recent_rate': result['recent_rate'],
                         'hit_limit': hit_limit,
-                        'fib_index': pause_strategy.fib_index,
+                        'fib_index': betting_fib_index,  # 记录投注时的索引
                         'result': status,
                         'paused': False,
                         'pause_remaining': pause_remaining
@@ -3763,6 +3763,9 @@ class LuckyNumberGUI:
                 # 更新预测器性能跟踪（保持与精准TOP15投注一致）
                 predictor.update_performance(predictions, actual)
                 
+                # 保存投注前的fib_index（这是本期投注实际使用的索引）
+                betting_fib_index = strategy.fib_index
+                
                 # 处理这一期
                 result = strategy.process_period(hit)
                 
@@ -3787,7 +3790,7 @@ class LuckyNumberGUI:
                     'cumulative_profit': strategy.balance,
                     'recent_rate': result['recent_rate'],
                     'hit_limit': hit_limit,
-                    'fib_index': strategy.fib_index
+                    'fib_index': betting_fib_index  # 记录投注时的索引
                 })
             
             # 统计结果
@@ -3870,8 +3873,8 @@ class LuckyNumberGUI:
                 self.log_output(f"{'='*70}\n")
                 self.log_output(f"展示期数：最近{len(pause_history)}期（含暂停期）\n")
                 self.log_output(f"暂停期间命中{pause_variant['paused_hit_count']}次，触发{pause_variant['pause_trigger_count']}次\n\n")
-                self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'暂停':<6}{'余停':<6}\n")
-                self.log_output(f"{'-'*120}\n")
+                self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'暂停':<6}{'余停':<6}{'Fib':<4}\n")
+                self.log_output(f"{'-'*124}\n")
                 cumulative_pause = 0
                 for entry in pause_history:
                     period = entry.get('period', 0)
@@ -3885,34 +3888,125 @@ class LuckyNumberGUI:
                     cumulative_pause += profit
                     paused_flag = "暂停" if entry.get('paused') else ""
                     pause_remaining = entry.get('pause_remaining', 0)
+                    fib_idx = entry.get('fib_index', 0)
                     hit_mark = '✓' if entry.get('hit') else ('-' if result == 'SKIP' else '✗')
                     self.log_output(
                         f"{period:<8}{date:<12}{actual:<6}{pred_str:<25}"
                         f"{multiplier:<8.2f}{bet_amount:<8.0f}{hit_mark:<6}"
-                        f"{profit:+10.0f}  {cumulative_pause:+12.0f}  {paused_flag:<6}{pause_remaining:<6}\n"
+                        f"{profit:+10.0f}  {cumulative_pause:+12.0f}  {paused_flag:<6}{pause_remaining:<6}{fib_idx:<4}\n"
                     )
                 self.log_output("\n")
 
             pause_roi = pause_variant['roi']
             pause_profit = pause_variant['total_profit']
             pause_drawdown = pause_variant['max_drawdown']
+            pause_cost = pause_variant['total_cost']
             roi_delta = pause_roi - roi
             profit_delta = pause_profit - total_profit
             drawdown_delta = strategy.max_drawdown - pause_drawdown
+            cost_delta = total_cost - pause_cost
+            cost_delta_pct = (cost_delta / total_cost * 100) if total_cost > 0 else 0
+            drawdown_delta_pct = (drawdown_delta / strategy.max_drawdown * 100) if strategy.max_drawdown > 0 else 0
+            
             self.log_output(f"{'='*70}\n")
-            self.log_output(f"附加验证：命中1停1期策略\n")
-            self.log_output(f"{'='*70}\n")
-            self.log_output(f"  实际投注: {pause_variant['bet_periods']}期，暂停: {pause_variant['pause_periods']}期\n")
-            self.log_output(f"  ROI: {pause_roi:+.2f}% (相对基准{roi_delta:+.2f}%)\n")
-            self.log_output(f"  净收益: {pause_profit:+.0f}元 (相对基准{profit_delta:+.0f}元)\n")
-            self.log_output(f"  最大回撤: {pause_drawdown:.0f}元 (改善{drawdown_delta:+.0f}元)\n")
-            self.log_output(f"  暂停触发: {pause_variant['pause_trigger_count']}次，暂停期漏中: {pause_variant['paused_hit_count']}次\n")
-            improvement_comment = "✅ 明显降低回撤" if drawdown_delta > 0 else "⚠️ 回撤未改善"
-            if roi_delta >= 0:
-                improvement_comment += "，ROI略有提升"
+            self.log_output(f"🎯 附加验证：命中1停1期暂停策略对比\n")
+            self.log_output(f"{'='*70}\n\n")
+            
+            # 评分系统
+            score_profit = 1 if profit_delta > 0 else (-1 if profit_delta < 0 else 0)
+            score_roi = 1 if roi_delta > 0 else (-1 if roi_delta < 0 else 0)
+            score_drawdown = 1 if drawdown_delta > 0 else (-1 if drawdown_delta < 0 else 0)
+            total_score = score_profit + score_roi + score_drawdown
+            
+            self.log_output(f"【策略对比】\n")
+            self.log_output(f"  策略名称        投注期数  命中率   ROI      净利润    最大回撤\n")
+            self.log_output(f"  {'-'*66}\n")
+            self.log_output(f"  基础策略        {len(results):>4}期   {hit_rate*100:>5.1f}%  {roi:>6.2f}%  {total_profit:>+7.0f}元  {strategy.max_drawdown:>6.0f}元\n")
+            self.log_output(f"  暂停策略        {pause_variant['bet_periods']:>4}期   {pause_variant['hit_rate']*100:>5.1f}%  {pause_roi:>6.2f}%  {pause_profit:>+7.0f}元  {pause_drawdown:>6.0f}元\n")
+            self.log_output(f"  {'-'*66}\n")
+            self.log_output(f"  差异            {pause_variant['bet_periods']-len(results):>+4}期   {(pause_variant['hit_rate']-hit_rate)*100:>+5.1f}%  {roi_delta:>+6.2f}%  {profit_delta:>+7.0f}元  {-drawdown_delta:>+6.0f}元\n\n")
+            
+            self.log_output(f"【暂停策略详情】\n")
+            self.log_output(f"  总期数: {pause_variant['total_periods']}期\n")
+            self.log_output(f"  实际投注: {pause_variant['bet_periods']}期（{pause_variant['bet_periods']/pause_variant['total_periods']*100:.1f}%）\n")
+            self.log_output(f"  暂停期数: {pause_variant['pause_periods']}期（{pause_variant['pause_periods']/pause_variant['total_periods']*100:.1f}%）\n")
+            self.log_output(f"  暂停触发: {pause_variant['pause_trigger_count']}次（每次命中后暂停1期）\n")
+            self.log_output(f"  暂停期漏中: {pause_variant['paused_hit_count']}次（漏中率{pause_variant['paused_hit_count']/pause_variant['pause_periods']*100:.1f}%）\n\n")
+            
+            self.log_output(f"【收益对比】\n")
+            profit_delta_pct = (profit_delta / abs(total_profit) * 100) if total_profit != 0 else 0
+            if profit_delta > 0:
+                self.log_output(f"  ✅ 净利润: 暂停策略更高 {profit_delta:+.0f}元 ({profit_delta_pct:+.1f}%)\n")
+            elif profit_delta < 0:
+                self.log_output(f"  ⚠️  净利润: 基础策略更高 {abs(profit_delta):.0f}元 ({abs(profit_delta_pct):.1f}%)\n")
             else:
-                improvement_comment += f"，ROI回落{abs(roi_delta):.2f}%"
-            self.log_output(f"  综合结论: {improvement_comment}\n\n")
+                self.log_output(f"  ➖ 净利润: 两者相同\n")
+            
+            if roi_delta > 0:
+                self.log_output(f"  ✅ ROI: 暂停策略更高 {roi_delta:+.2f}% (从{roi:.2f}%提升到{pause_roi:.2f}%)\n")
+            elif roi_delta < 0:
+                self.log_output(f"  ⚠️  ROI: 基础策略更高 {abs(roi_delta):.2f}%\n")
+            else:
+                self.log_output(f"  ➖ ROI: 两者相同\n")
+            self.log_output(f"\n")
+            
+            self.log_output(f"【风险对比】\n")
+            if drawdown_delta > 0:
+                self.log_output(f"  ✅ 最大回撤: 暂停策略更低 {drawdown_delta:.0f}元 ({drawdown_delta_pct:.1f}%)\n")
+                self.log_output(f"     基础: {strategy.max_drawdown:.0f}元 → 暂停: {pause_drawdown:.0f}元\n")
+            elif drawdown_delta < 0:
+                self.log_output(f"  ⚠️  最大回撤: 基础策略更低 {abs(drawdown_delta):.0f}元\n")
+            else:
+                self.log_output(f"  ➖ 最大回撤: 两者相同\n")
+            
+            self.log_output(f"  最长连亏: 基础{max_consecutive_losses}期 vs 暂停{pause_variant['max_consecutive_losses']}期\n")
+            self.log_output(f"  触及10倍: 基础{hit_10x_count}次 vs 暂停{pause_variant['hit_10x_count']}次\n\n")
+            
+            self.log_output(f"【成本对比】\n")
+            self.log_output(f"  投注成本差异: {cost_delta:+.0f}元 ({cost_delta_pct:+.1f}%)\n")
+            self.log_output(f"  减少投注: {len(results) - pause_variant['bet_periods']}期\n")
+            self.log_output(f"  成本效率: 暂停策略节省{cost_delta_pct:.1f}%投注成本\n\n")
+            
+            self.log_output(f"【综合评估】\n")
+            self.log_output(f"  综合得分: {total_score}/3\n")
+            
+            if total_score >= 2:
+                conclusion = "✅ 暂停策略明显优于基础策略"
+                recommendation = "强烈建议使用暂停策略"
+                rating = "⭐⭐⭐⭐⭐"
+            elif total_score == 1:
+                conclusion = "🟡 暂停策略略优于基础策略"
+                recommendation = "建议使用暂停策略"
+                rating = "⭐⭐⭐⭐"
+            elif total_score == 0:
+                conclusion = "➖ 两种策略表现相近"
+                recommendation = "根据个人偏好选择"
+                rating = "⭐⭐⭐"
+            elif total_score == -1:
+                conclusion = "🟡 基础策略略优于暂停策略"
+                recommendation = "建议使用基础策略"
+                rating = "⭐⭐⭐"
+            else:
+                conclusion = "⚠️  基础策略明显优于暂停策略"
+                recommendation = "建议使用基础策略"
+                rating = "⭐⭐"
+            
+            self.log_output(f"  结论: {conclusion}\n")
+            self.log_output(f"  评级: {rating}\n")
+            self.log_output(f"  建议: {recommendation}\n\n")
+            
+            self.log_output(f"【暂停策略优缺点】\n")
+            self.log_output(f"  优点:\n")
+            self.log_output(f"    • 减少投注频率，降低总成本{cost_delta_pct:.1f}%\n")
+            self.log_output(f"    • 命中后暂停，避免小额亏损累积\n")
+            self.log_output(f"    • 重置Fibonacci序列，从低倍数重新开始\n")
+            if drawdown_delta > 0:
+                self.log_output(f"    • 显著降低最大回撤{drawdown_delta:.0f}元（{drawdown_delta_pct:.1f}%）\n")
+            self.log_output(f"  缺点:\n")
+            self.log_output(f"    • 暂停期可能错过连续命中机会（漏中{pause_variant['paused_hit_count']}次）\n")
+            if profit_delta < 0:
+                self.log_output(f"    • 可能减少总收益{abs(profit_delta):.0f}元\n")
+            self.log_output(f"\n")
             
             # 输出核心统计数据
             self.log_output(f"{'='*70}\n")
