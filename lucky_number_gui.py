@@ -3540,7 +3540,7 @@ class LuckyNumberGUI:
                 'good_thresh': 0.35,  # 增强阈值（命中率≥35%时增强）
                 'bad_thresh': 0.20,  # 降低阈值（命中率≤20%时降低）
                 'boost_mult': 1.5,  # 增强倍数（1.2→1.5，更激进增强）
-                'reduce_mult': 0.5,  # 降低倍数（0.8→0.5，更激进降低）
+                'reduce_mult': 1.0,  # 降低倍数（0.8→1.0，保持基础倍数）
                 'max_multiplier': 10,  # 最大倍数限制
                 'base_bet': 15,  # 基础投注
                 'win_reward': 47  # 中奖奖励（实际奖励金额）
@@ -3553,9 +3553,11 @@ class LuckyNumberGUI:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.log_output(f"分析时间: {current_time}\n")
             self.log_output(f"策略版本: {config['name']}（激进组合，含命中1停1期暂停逻辑）\n")
-            self.log_output(f"核心参数: 窗口12期 | 增强≥35%×1.5 | 降低≤20%×0.5 | 命中后暂停1期\n")
-            self.log_output(f"基础表现: ROI 12.70% | 回撤742元 | 净利润+1374元\n")
-            self.log_output(f"暂停策略: ROI 18.46% | 回撤371元 | 净利润+1476元 ⭐推荐\n\n")
+            self.log_output(f"核心参数: 窗口12期 | 增强≥35%×1.5 | 降低≤20%×1.0 | 命中后暂停1期\n")
+            self.log_output(f"历史测试参考（实际结果可能有所不同）：\n")
+            self.log_output(f"  基础表现: ROI 12.70% | 回撤742元 | 净利润+1374元\n")
+            self.log_output(f"  暂停策略: ROI 18.46% | 回撤可变 | 净利润+1476元 ⭐推荐\n")
+            self.log_output(f"注意：回撤值受数据周期影响，以实际运行结果为准\n\n")
             
             # 读取数据
             file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
@@ -3635,10 +3637,11 @@ class LuckyNumberGUI:
                         profit = -bet
                         self.balance += profit
                         self.fib_index += 1
-                        
-                        if self.balance < self.min_balance:
-                            self.min_balance = self.balance
-                            self.max_drawdown = abs(self.min_balance)
+                    
+                    # 更新最大回撤（无论命中还是未命中都要检查）
+                    if self.balance < self.min_balance:
+                        self.min_balance = self.balance
+                        self.max_drawdown = abs(self.min_balance)
                     
                     # 添加结果到历史（在投注和结算之后）
                     self.recent_results.append(1 if hit else 0)
