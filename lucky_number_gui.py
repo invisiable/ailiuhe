@@ -3410,8 +3410,8 @@ class LuckyNumberGUI:
             self.log_output("第三步：获取下期TOP15预测（⭐综合预测Top15）\n")
             self.log_output(f"{'='*70}\n\n")
             
-            # 使用全部数据预测下期
-            all_numbers = df['number'].values
+            # 使用最近25期数据预测下期（与回测训练窗口一致）
+            all_numbers = df['number'].values[-25:]
             next_analysis = predictor.get_analysis(all_numbers)
             next_top15 = next_analysis['top15']
             
@@ -4347,7 +4347,8 @@ class LuckyNumberGUI:
             self.log_output(f"第三步：下期投注建议（命中1停1期暂停策略）\n")
             self.log_output(f"{'='*70}\n\n")
             
-            all_numbers = df['number'].values
+            # 使用最近25期数据预测（与回测训练窗口一致）
+            all_numbers = df['number'].values[-25:]
             next_top15 = predictor.predict(all_numbers)
             
             # 当前状态（使用暂停策略对象）
@@ -4876,8 +4877,8 @@ class LuckyNumberGUI:
             self.log_output("第四步：获取下期TOP15预测（💎精准版）\n")
             self.log_output(f"{'='*70}\n\n")
             
-            # 使用全部数据预测下期
-            all_numbers = df['number'].values
+            # 使用最近25期数据预测下期（与回测训练窗口一致）
+            all_numbers = df['number'].values[-25:]
             next_top15 = predictor.predict(all_numbers)
             
             self.log_output(f"【下期预测结果】\n")
