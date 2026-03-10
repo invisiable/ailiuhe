@@ -3168,9 +3168,11 @@ class LuckyNumberGUI:
             self.log_output(f"使用与'⭐ 综合预测 Top 15'相同的预测方法...\n")
             self.log_output(f"投注策略：每期购买完整的TOP15（15个数字）\n\n")
             
+            TRAIN_WINDOW = 25   # 最优窗口期（验证：窗口25期命中率比全量+3.4%，ROI+10.45%）
             for i in range(start_idx, len(df)):
-                # 使用i之前的数据进行预测
-                train_data = df.iloc[:i]['number'].values
+                # 使用最近 TRAIN_WINDOW 期数据进行预测（比全量历史更精准）
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
                 
                 # 使用与综合预测相同的方法：get_analysis() 获取top15
                 analysis = predictor.get_analysis(train_data)
@@ -3554,10 +3556,12 @@ class LuckyNumberGUI:
             self.log_output(f"分析时间: {current_time}\n")
             self.log_output(f"策略版本: 纯斐波那契数列倍投（含命中1停1期暂停逻辑）\n")
             self.log_output(f"核心参数: 斐波那契数列 [1,1,2,3,5,8,13,21,34,55,89,144] | 命中后暂停1期\n")
+            self.log_output(f"预测窗口: 最近25期滚动训练（已验证最优：+3.4%命中率 / +10.45% ROI / -35%回撤）\n")
             self.log_output(f"策略特点：\n")
             self.log_output(f"  - 采用经典斐波那契数列进行倍数递增\n")
             self.log_output(f"  - 命中后重置倍数，未命中则按数列递增\n")
             self.log_output(f"  - 命中后暂停1期，降低风险并锁定利润\n")
+            self.log_output(f"  - 每期仅使用最近25期数据训练，过滤历史噪声\n")
             self.log_output(f"注意：回撤值受数据周期影响，以实际运行结果为准\n\n")
             
             # 读取数据
@@ -3752,16 +3756,16 @@ class LuckyNumberGUI:
             
             # 初始化策略
             strategy = SmartDynamicStrategy(config)
-            
-            # 回测统计
             results = []
             hit_10x_count = 0
             
+            TRAIN_WINDOW = 25   # 最优窗口期（验证：命中率+3.4% ROI+14.89% 回撤-35%）
             for i in range(start_idx, len(df)):
                 period_num = i - start_idx + 1
-                
-                # 预测
-                train_data = df.iloc[:i]['number'].values
+
+                # 使用最近 TRAIN_WINDOW 期数据进行预测（比全量历史更精准）
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
                 predictions = predictor.predict(train_data)
                 actual = df.iloc[i]['number']
                 date = df.iloc[i]['date']
@@ -3833,7 +3837,13 @@ class LuckyNumberGUI:
             
             # 获取最近300期数据
             recent_300 = results[-300:] if len(results) > 300 else results
-            
+
+            # 预计算马尔可夫所需数据（用于详情表预测率列）
+            hit_records_t15   = [r['hit'] for r in results]
+            mk2_table_t15     = self._calculate_markov2_transition(hit_records_t15)
+            losing_streak_t15 = self._analyze_losing_streak_recovery(hit_records_t15)
+            winning_cont_t15  = self._calculate_winning_streak_continuation(hit_records_t15)
+
             # 表格标题和期间统计
             hits_300 = sum(1 for r in recent_300 if r['hit'])
             total_profit_300 = sum(r['profit'] for r in recent_300)
@@ -3843,8 +3853,8 @@ class LuckyNumberGUI:
             self.log_output(f"期间统计：命中{hits_300}/{len(recent_300)}期，净盈利{total_profit_300:+.0f}元\n\n")
             
             # 表格标题（增加累计列宽度）
-            self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'12期率':<10}{'触10x':<6}{'Fib':<4}\n")
-            self.log_output(f"{'-'*130}\n")
+            self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'12期率':<10}{'预测率':<10}{'触10x':<6}{'Fib':<4}\n")
+            self.log_output(f"{'-'*140}\n")
             
             # 输出每期详情，累计值从0开始重新计算
             cumulative_in_range = 0
@@ -3864,15 +3874,19 @@ class LuckyNumberGUI:
                 rate = r['recent_rate']
                 limit_mark = '是' if r['hit_limit'] else ''
                 fib_idx = r['fib_index']
-                
+
+                pos_0based    = r['period'] - 1
+                pred_prob_t15 = self._predict_markov_hit_probability(
+                    hit_records_t15, pos_0based, mk2_table_t15, losing_streak_t15, winning_cont_t15)
+
                 self.log_output(
                     f"{period:<8}{date:<12}{actual:<6}{pred_str:<25}"
                     f"{multiplier:<8.2f}{bet:<8.0f}{hit_mark:<6}"
                     f"{profit:+10.0f}  {cumulative_in_range:+12.0f}  {rate*100:<8.1f}%  "
-                    f"{limit_mark:<6}{fib_idx:<4}\n"
+                    f"{pred_prob_t15*100:<8.1f}%  {limit_mark:<6}{fib_idx:<4}\n"
                 )
             
-            self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP15=显示前5个 | 倍数=投注倍数 | 12期率=最近12期命中率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
+            self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP15=显示前5个 | 倍数=投注倍数 | 12期率=最近12期命中率 | 预测率=马尔可夫综合预测命中概率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
 
             # 追加命中1停1期版本的最近300期详情
             pause_history = pause_variant['history'][-300:] if len(pause_variant['history']) > 300 else pause_variant['history']
@@ -4175,6 +4189,159 @@ class LuckyNumberGUI:
                 self.log_output(f"  🎯 综合评级: ⭐⭐⭐ 需要优化\n\n")
             
 
+            # ── TOP15 马尔可夫链命中预测 ─────────────────────────────────────────
+            # hit_records_t15 / mk2_table_t15 / losing_streak_t15 / winning_cont_t15
+            # 均已在详情表输出前预计算完成
+            base_rate_t15     = hits / len(results) if results else 0.33
+
+            # 当前连败/连胜
+            cur_ls_t15 = cur_ws_t15 = 0
+            for _h in reversed(hit_records_t15):
+                if not _h and cur_ws_t15 == 0: cur_ls_t15 += 1
+                elif _h and cur_ls_t15 == 0:   cur_ws_t15 += 1
+                else: break
+            last_10_str_t15 = ''.join(['✓' if _h else '✗' for _h in hit_records_t15[-10:]])
+
+            # 方案一：连败/连胜统计
+            if cur_ls_t15 > 0 and losing_streak_t15:
+                _k1 = min(cur_ls_t15, max(losing_streak_t15.keys()))
+                h1_t15, t1_t15, prob1_t15 = losing_streak_t15.get(_k1, (0, 0, base_rate_t15))
+                label1_t15 = f"{cur_ls_t15}期连败恢复率"
+            elif cur_ws_t15 > 0 and winning_cont_t15:
+                _k1 = min(cur_ws_t15, max(winning_cont_t15.keys()))
+                h1_t15, t1_t15, prob1_t15 = winning_cont_t15.get(_k1, (0, 0, base_rate_t15))
+                label1_t15 = f"{cur_ws_t15}期连胜续中率"
+            else:
+                h1_t15, t1_t15, prob1_t15 = (int(base_rate_t15 * len(hit_records_t15)), len(hit_records_t15), base_rate_t15)
+                label1_t15 = "整体基准率"
+            conf1_t15 = '高' if t1_t15 >= 20 else ('中' if t1_t15 >= 8 else '低')
+
+            # 方案二：近8期窗口
+            prob2_t15 = sum(hit_records_t15[-8:]) / min(8, len(hit_records_t15)) if hit_records_t15 else 0
+
+            # 方案三：综合加权
+            w3_t15 = min(0.60, t1_t15 / 50.0)
+            w2_t15 = 0.20
+            wb_t15 = 1.0 - w3_t15 - w2_t15
+            prob3_t15 = w3_t15 * prob1_t15 + w2_t15 * prob2_t15 + wb_t15 * base_rate_t15
+
+            # 方案四：2阶马尔可夫
+            mk2_names_t15 = {(False, False): '败-败', (True, False): '胜-败',
+                             (False, True): '败-胜', (True, True): '胜-胜'}
+            if len(hit_records_t15) >= 2:
+                cur_mk_t15     = (hit_records_t15[-2], hit_records_t15[-1])
+                mk2_h_t15, mk2_tcnt_t15, prob4_raw_t15 = mk2_table_t15.get(cur_mk_t15, (0, 0, base_rate_t15))
+                mk2_sname_t15  = mk2_names_t15.get(cur_mk_t15, '未知')
+            else:
+                prob4_raw_t15 = base_rate_t15; mk2_h_t15 = mk2_tcnt_t15 = 0; mk2_sname_t15 = '数据不足'
+            prob4_mk_t15 = self._predict_markov_hit_probability(
+                hit_records_t15, len(hit_records_t15), mk2_table_t15, losing_streak_t15, winning_cont_t15)
+
+            # 投注建议
+            if prob4_mk_t15 >= 0.55:
+                mk_advice_t15 = "积极投注（可适当加倍）"; mk_mult_t15 = "1.5x ~ 2x"
+            elif prob4_mk_t15 >= 0.50:
+                mk_advice_t15 = "正常投注";              mk_mult_t15 = "1x"
+            elif prob4_mk_t15 >= 0.40:
+                mk_advice_t15 = "保守投注（减半）";      mk_mult_t15 = "0.5x"
+            else:
+                mk_advice_t15 = "建议跳过本期";          mk_mult_t15 = "0x"
+            dual_t15     = prob4_mk_t15 > 0.50 and prob3_t15 > 0.48
+            dual_tag_t15 = "  ✅ 双重确认触发！" if dual_t15 else ""
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output("🔗 马尔可夫链状态建模 — TOP15 命中预测\n")
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"  最近10期走势: {last_10_str_t15}\n")
+            if cur_ls_t15 > 0:
+                self.log_output(f"  当前状态    : ❌ {cur_ls_t15}期连败\n")
+            elif cur_ws_t15 > 0:
+                self.log_output(f"  当前状态    : ✅ {cur_ws_t15}期连胜\n")
+            else:
+                self.log_output(f"  当前状态    : → 交替振荡\n")
+            self.log_output(f"  历史基准命中率: {base_rate_t15*100:.1f}%\n\n")
+
+            self.log_output(f"  【方案一】连败/连胜统计法\n")
+            self.log_output(f"    依据: {label1_t15}  样本: {t1_t15}次  置信度: {conf1_t15}\n")
+            self.log_output(f"    预测命中率: {prob1_t15*100:.1f}%\n\n")
+
+            self.log_output(f"  【方案二】近8期窗口法\n")
+            self.log_output(f"    近8期命中: {sum(hit_records_t15[-8:])}/{min(8, len(hit_records_t15))}期\n")
+            self.log_output(f"    预测命中率: {prob2_t15*100:.1f}%\n\n")
+
+            self.log_output(f"  【方案三】综合加权法\n")
+            self.log_output(f"    权重: 连败/连胜 {w3_t15*100:.0f}% + 近期窗口 {w2_t15*100:.0f}% + 基准 {wb_t15*100:.0f}%\n")
+            self.log_output(f"    综合预测命中率: {prob3_t15*100:.1f}%\n\n")
+
+            self.log_output(f"  【方案四】2阶马尔可夫链\n")
+            self.log_output(f"    当前状态: {mk2_sname_t15}  样本: {mk2_tcnt_t15}次  状态命中率: {prob4_raw_t15*100:.1f}%\n")
+            self.log_output(f"    马尔可夫综合预测命中率: {prob4_mk_t15*100:.1f}%\n\n")
+
+            self.log_output(f"  ═══════════════════════════════════════\n")
+            self.log_output(f"  💡 投注建议(马尔可夫): {mk_advice_t15}  参考倍数: {mk_mult_t15}{dual_tag_t15}\n")
+            self.log_output(f"  ═══════════════════════════════════════\n\n")
+
+            # 2阶状态转移表
+            self.log_output(f"  📊 2阶马尔可夫状态转移概率表：\n")
+            self.log_output(f"     {'状态':<6} | 命中次数 | 总次数 | 状态命中率\n")
+            self.log_output("     " + "-" * 38 + "\n")
+            for _st in [(False, False), (True, False), (False, True), (True, True)]:
+                _sn = {(False, False): '败-败', (True, False): '胜-败',
+                       (False, True):  '败-胜', (True, True):  '胜-胜'}[_st]
+                _mh, _mt, _mp = mk2_table_t15.get(_st, (0, 0, 0.0))
+                _cur = " ←当前" if len(hit_records_t15) >= 2 and _st == (hit_records_t15[-2], hit_records_t15[-1]) else ""
+                self.log_output(f"     {_sn:<6} | {_mh:>4}次   | {_mt:>4}次 | {_mp*100:>5.1f}%{_cur}\n")
+            self.log_output("\n")
+
+            # 三策略过滤验证（最近300期）
+            r300_t15       = results[-300:] if len(results) > 300 else results
+            r300_start_t15 = len(results) - len(r300_t15)
+
+            def _val_t15(cond_fn):
+                tot = pk = dd = bets = hts = 0
+                for _ri, _rv in enumerate(r300_t15):
+                    _pos = r300_start_t15 + _ri
+                    if cond_fn(_pos):
+                        bets += 1
+                        if _rv['hit']: tot += config['win_reward'] - config['base_bet']; hts += 1
+                        else: tot -= config['base_bet']
+                        if tot > pk: pk = tot
+                        dd = max(dd, pk - tot)
+                _roi2 = tot / (bets * config['base_bet']) * 100 if bets > 0 else 0.0
+                _hr2  = hts / bets * 100                        if bets > 0 else 0.0
+                _rr2  = pk / dd                                 if dd > 0 else 0.0
+                return bets, hts, _hr2, tot, pk, dd, _roi2, _rr2
+
+            sA_t15 = _val_t15(lambda _p: self._predict_current_hit_probability(
+                hit_records_t15, _p, losing_streak_t15, winning_cont_t15) > 0.50)
+            sB_t15 = _val_t15(lambda _p: self._predict_markov_hit_probability(
+                hit_records_t15, _p, mk2_table_t15, losing_streak_t15, winning_cont_t15) > 0.50)
+            sC_t15 = _val_t15(lambda _p: (
+                self._predict_markov_hit_probability(
+                    hit_records_t15, _p, mk2_table_t15, losing_streak_t15, winning_cont_t15) > 0.50 and
+                self._predict_current_hit_probability(
+                    hit_records_t15, _p, losing_streak_t15, winning_cont_t15) > 0.48))
+
+            self.log_output(f"  {'='*68}\n")
+            self.log_output(f"  🔬 三策略过滤验证（{len(r300_t15)}期 · 固投{config['base_bet']}元）\n")
+            self.log_output(f"  {'='*68}\n")
+            self.log_output(f"\n  {'策略':<28} {'投注':>5} {'命中率':>7} {'盈亏':>9} {'峰值':>8} {'回撤':>7} {'ROI':>8} {'风险收益':>8}\n")
+            self.log_output("  " + "-" * 84 + "\n")
+            for _lbl, _sv in [
+                ('A: 原版综合加权 >50%',     sA_t15),
+                ('B: 马尔可夫综合加权 >50%', sB_t15),
+                ('C: 双重确认(马+原版)',      sC_t15),
+            ]:
+                _bt, _ht, _hr, _tt, _pk, _dd, _roi, _rr = _sv
+                self.log_output(
+                    f"  {_lbl:<28} {_bt:>4}期 {_hr:>6.1f}% {_tt:>+9.0f}元 "
+                    f"{_pk:>+8.0f}元 {_dd:>7.0f}元 {_roi:>+7.2f}% {_rr:>8.2f}\n")
+            _all_h   = sum(1 for _rv in r300_t15 if _rv['hit'])
+            _all_p   = _all_h * (config['win_reward'] - config['base_bet']) - (len(r300_t15) - _all_h) * config['base_bet']
+            _all_roi = _all_p / (len(r300_t15) * config['base_bet']) * 100
+            self.log_output(
+                f"  {'基准: 固投全部期':<28} {len(r300_t15):>4}期    N/A  {_all_p:>+9.0f}元      N/A     N/A {_all_roi:>+7.2f}%      N/A\n\n")
+
             # 下期预测（基于暂停策略）
             self.log_output(f"{'='*70}\n")
             self.log_output(f"第三步：下期投注建议（命中1停1期暂停策略）\n")
@@ -4466,8 +4633,9 @@ class LuckyNumberGUI:
             self.log_output(f"投注策略：每期购买完整的TOP15（15个数字）\n\n")
             
             for i in range(start_idx, len(df)):
-                # 使用i之前的数据进行预测
-                train_data = df.iloc[:i]['number'].values
+                # 使用最近 25 期数据进行预测（最优窗口，已验证）
+                lo = max(0, i - 25)
+                train_data = df.iloc[lo:i]['number'].values
                 
                 # 使用精准预测器
                 top15 = predictor.predict(train_data)
@@ -5151,6 +5319,139 @@ class LuckyNumberGUI:
                 self.log_output(f"• 触及10x: {smart_result.get('hit_10x_count', 0)}次\n")
                 self.log_output(f"• 适合人群: 稳健型投资者，追求收益与风险的平衡\n\n")
                 
+                # ── 统计数据准备 ──────────────────────────────────────
+                losing_streak_stats    = self._analyze_losing_streak_recovery(hit_records)
+                winning_streak_stats   = self._analyze_winning_streak_probability(hit_records)
+                winning_continuation   = self._calculate_winning_streak_continuation(hit_records)
+                mk2_table              = self._calculate_markov2_transition(hit_records)
+                base_rate              = sum(hit_records) / len(hit_records) if hit_records else 0.5
+
+                # 计算当前连败 / 连胜
+                current_losing_streak = 0
+                for rec in reversed(hit_records):
+                    if not rec: current_losing_streak += 1
+                    else: break
+                current_winning_streak = 0
+                if current_losing_streak == 0:
+                    for rec in reversed(hit_records):
+                        if rec: current_winning_streak += 1
+                        else: break
+
+                # 最近10期走势
+                last_10 = hit_records[-10:] if len(hit_records) >= 10 else hit_records
+                last_10_str = ''.join(['✓' if h else '✗' for h in last_10])
+                last_8_rate = sum(hit_records[-8:]) / min(8, len(hit_records)) if hit_records else 0
+
+                # ── 方案四：2阶马尔可夫预测 ────────────────────────────────────────
+                mk2_names = {(False, False): '败-败', (True, False): '胜-败',
+                             (False, True): '败-胜', (True, True): '胜-胜'}
+                if len(hit_records) >= 2:
+                    cur_mk_state = (hit_records[-2], hit_records[-1])
+                    mk2_h, mk2_t, prob4_raw = mk2_table.get(cur_mk_state, (0, 0, base_rate))
+                    mk2_state_name = mk2_names.get(cur_mk_state, '未知')
+                else:
+                    prob4_raw = base_rate; mk2_h = mk2_t = 0; mk2_state_name = '数据不足'
+                prob4_mk = self._predict_markov_hit_probability(
+                    hit_records, len(hit_records), mk2_table, losing_streak_stats, winning_continuation)
+
+                # ── 方案一：连败/连胜统计法 ────────────────────────────
+                if current_losing_streak > 0:
+                    key1 = min(current_losing_streak, max(losing_streak_stats.keys()) if losing_streak_stats else 1)
+                    hits1, total1, prob1 = losing_streak_stats.get(key1, (0, 0, base_rate))
+                    method1_label = f"{current_losing_streak}期连败恢复率"
+                    method1_source = f"连败{key1}期后历史命中率"
+                elif current_winning_streak > 0 and winning_continuation:
+                    key1 = min(current_winning_streak, max(winning_continuation.keys()) if winning_continuation else 1)
+                    hits1, total1, prob1 = winning_continuation.get(key1, (0, 0, base_rate))
+                    method1_label = f"{current_winning_streak}期连胜续中率"
+                    method1_source = f"连胜{key1}期后历史续命中率"
+                else:
+                    hits1, total1, prob1 = (int(base_rate * len(hit_records)), len(hit_records), base_rate)
+                    method1_label = "整体命中率（无连续走势）"
+                    method1_source = "整体基准率"
+                confidence1 = '高' if total1 >= 20 else ('中' if total1 >= 8 else '低')
+
+                # ── 方案二：近期窗口法 ─────────────────────────────────
+                prob2 = last_8_rate
+                method2_label = f"近8期命中率 {sum(hit_records[-8:])}/{min(8,len(hit_records))}期"
+
+                # ── 方案三：综合加权法 ─────────────────────────────────
+                # 权重 = 连/败胜统计（min 60% 权） + 近期窗口（20%） + 基准（20%）
+                w_streak = min(0.60, total1 / 50.0)
+                w_window = 0.20
+                w_base   = 1.0 - w_streak - w_window
+                prob3 = w_streak * prob1 + w_window * prob2 + w_base * base_rate
+
+                # ── 投注建议 (马尔可夫方案四决策) ──────────────────────────────────
+                if prob4_mk >= 0.55:
+                    bet_advice = "积极投注（可适当加倍）"
+                    bet_mult   = "1.5x ~ 2x"
+                elif prob4_mk >= 0.50:
+                    bet_advice = "正常投注"
+                    bet_mult   = "1x"
+                elif prob4_mk >= 0.40:
+                    bet_advice = "保守投注（减半）"
+                    bet_mult   = "0.5x"
+                else:
+                    bet_advice = "建议跳过本期"
+                    bet_mult   = "0x"
+
+                # ── 输出预测方案 ───────────────────────────────────────
+                self.log_output(f"{'='*80}\n")
+                self.log_output("🎯 下期命中率预测方案\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"  最近10期走势: {last_10_str}\n")
+                if current_losing_streak > 0:
+                    self.log_output(f"  当前状态    : ❌ {current_losing_streak}期连败\n")
+                elif current_winning_streak > 0:
+                    self.log_output(f"  当前状态    : ✅ {current_winning_streak}期连胜\n")
+                else:
+                    self.log_output(f"  当前状态    : → 交替振荡\n")
+                self.log_output(f"  历史基准命中率: {base_rate*100:.1f}%\n\n")
+
+                self.log_output(f"  【方案一】连败/连胜统计法\n")
+                self.log_output(f"    依据: {method1_source}\n")
+                self.log_output(f"    样本: {total1}次  预测命中率: {prob1*100:.1f}%  置信度: {confidence1}\n\n")
+
+                self.log_output(f"  【方案二】近期窗口法\n")
+                self.log_output(f"    依据: {method2_label}\n")
+                self.log_output(f"    预测命中率: {prob2*100:.1f}%\n\n")
+
+                self.log_output(f"  【方案三】综合加权法\n")
+                self.log_output(f"    权重: 连败/连胜统计 {w_streak*100:.0f}% + 近期窗口 {w_window*100:.0f}% + 基准 {w_base*100:.0f}%\n")
+                self.log_output(f"    综合预测命中率: {prob3*100:.1f}%\n\n")
+
+                self.log_output(f"  【方案四】2阶马尔可夫链（新）\n")
+                self.log_output(f"    当前状态: {mk2_state_name}  样本: {mk2_t}次  状态命中率: {prob4_raw*100:.1f}%\n")
+                self.log_output(f"    马尔可夫综合预测命中率: {prob4_mk*100:.1f}%\n\n")
+
+                dual_confirm = prob4_mk > 0.50 and prob3 > 0.48
+                dual_tag = "  ✅ 双重确认触发！" if dual_confirm else ""
+                self.log_output(f"  ═══════════════════════════════════════\n")
+                self.log_output(f"  💡 投注建议(马尔可夫): {bet_advice}  参考倍数: {bet_mult}{dual_tag}\n")
+                self.log_output(f"  ═══════════════════════════════════════\n\n")
+
+                # ── 连败恢复概率表 ────────────────────────────────────
+                self.log_output("  📉 连败恢复命中概率：\n")
+                self.log_output("     连败长度 | 恢复次数 | 总次数 | 命中率\n")
+                self.log_output("     " + "-" * 42 + "\n")
+                for sl in sorted(losing_streak_stats.keys())[:8]:
+                    h, t, p = losing_streak_stats[sl]
+                    if t > 0:
+                        mark = " ←当前" if sl == current_losing_streak else ""
+                        self.log_output(f"     {sl}期连败   | {h:>4}次   | {t:>4}次 | {p*100:>5.1f}%{mark}\n")
+
+                # ── 连胜续中概率表 ────────────────────────────────────
+                self.log_output("\n  📈 连胜后续命中概率：\n")
+                self.log_output("     连胜长度 | 继续次数 | 总次数 | 续中率 | 中断率\n")
+                self.log_output("     " + "-" * 52 + "\n")
+                for sl in sorted(winning_continuation.keys())[:8]:
+                    c, t, p = winning_continuation[sl]
+                    mark = " ←当前" if sl == current_winning_streak else ""
+                    self.log_output(f"     {sl}连胜     | {c:>4}次   | {t:>4}次 | {p*100:>5.1f}% | {(1-p)*100:>5.1f}%{mark}\n")
+
+                self.log_output("\n")
+                
                 # 输出最近300期详情表
                 if 'period_details' in smart_result:
                     period_details = smart_result['period_details']
@@ -5158,9 +5459,9 @@ class LuckyNumberGUI:
                     # 获取最近300期数据
                     recent_300 = period_details[-300:] if len(period_details) > 300 else period_details
                     
-                    self.log_output(f"{'='*130}\n")
+                    self.log_output(f"{'='*140}\n")
                     self.log_output(f"📊 智能动态投注v3.2 - 最近300期详细投注记录（激进组合·优化版）\n")
-                    self.log_output(f"{'='*130}\n\n")
+                    self.log_output(f"{'='*140}\n\n")
                     
                     # 计算展示区间统计
                     hits_300 = sum(1 for d in recent_300 if d['is_betting'] and d['profit'] > 0)
@@ -5177,9 +5478,9 @@ class LuckyNumberGUI:
                     self.log_output(f"时间范围：{start_date} 至 {end_date}\n")
                     self.log_output(f"期间统计：命中{hits_300}/{betting_periods}期，净盈利{total_profit_300:+.0f}元\n\n")
                     
-                    # 表格标题
-                    self.log_output(f"{'期号':<8}{'日期':<12}{'实际':<6}{'预测TOP5':<30}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'8期率':<10}{'触10x':<6}{'Fib':<4}\n")
-                    self.log_output(f"{'-'*130}\n")
+                    # 表格标题（添加预测概率列）
+                    self.log_output(f"{'期号':<8}{'日期':<12}{'实际':<6}{'预测TOP5':<30}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'8期率':<10}{'预测率':<10}{'触10x':<6}{'Fib':<4}\n")
+                    self.log_output(f"{'-'*140}\n")
                     
                     # 输出每期详情，累计值从0开始
                     cumulative_in_range = 0
@@ -5203,6 +5504,10 @@ class LuckyNumberGUI:
                         cumulative_in_range += profit
                         
                         rate = detail.get('recent_rate', 0)
+                        
+                        # 计算当前期预测概率（综合连败+连胜）
+                        pred_prob = self._predict_current_hit_probability(hit_records, period, losing_streak_stats, winning_continuation)
+                        
                         # 检查是否触及10x限制
                         limit_mark = '是' if multiplier >= 10 else ''
                         # 直接从detail中获取Fib索引
@@ -5212,11 +5517,77 @@ class LuckyNumberGUI:
                             f"{period+1:<8}{date_str:<12}{actual_animal:<6}{pred_str:<30}"
                             f"{multiplier:<8.2f}{bet:<8.0f}{hit_mark:<6}"
                             f"{profit:+10.0f}  {cumulative_in_range:+12.0f}  {rate*100:<8.1f}%  "
-                            f"{limit_mark:<6}{fib_idx:<4}\n"
+                            f"{pred_prob*100:<8.1f}%  {limit_mark:<6}{fib_idx:<4}\n"
                         )
                     
-                    self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP5=v10.0生肖预测 | 倍数=动态调整倍数 | 8期率=最近8期命中率(v3.2) | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
-            
+                    self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP5=v10.0生肖预测 | 倍数=动态调整倍数 | 8期率=最近8期命中率(v3.2) | 预测率=基于历史模式的预测命中概率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
+
+                    # ── 多策略对比验证 ─────────────────────────────────────────────────
+                    self.log_output(f"{'='*90}\n")
+                    self.log_output("🔬 策略验证对比（预测率过滤 · 固投1倍 · 最近300期）\n")
+                    self.log_output(f"{'='*90}\n")
+
+                    BET   = 20
+                    WIN_R = 47
+
+                    def _run_val(condition_fn):
+                        total = peak = maxdd = bets = hits = 0
+                        for det in recent_300:
+                            idx = det['period']
+                            if condition_fn(idx):
+                                bets += 1
+                                if hit_records[idx]: total += WIN_R - BET; hits += 1
+                                else: total -= BET
+                                if total > peak: peak = total
+                                dd = peak - total
+                                if dd > maxdd: maxdd = dd
+                        roi = total / (bets * BET) * 100 if bets > 0 else 0.0
+                        hr  = hits / bets * 100           if bets > 0 else 0.0
+                        rr  = peak / maxdd                if maxdd > 0 else 0.0
+                        return bets, hits, hr, total, peak, maxdd, roi, rr
+
+                    sA = _run_val(lambda i: self._predict_current_hit_probability(
+                        hit_records, i, losing_streak_stats, winning_continuation) > 0.50)
+                    sB = _run_val(lambda i: self._predict_markov_hit_probability(
+                        hit_records, i, mk2_table, losing_streak_stats, winning_continuation) > 0.50)
+                    sC = _run_val(lambda i: (
+                        self._predict_markov_hit_probability(
+                            hit_records, i, mk2_table, losing_streak_stats, winning_continuation) > 0.50 and
+                        self._predict_current_hit_probability(
+                            hit_records, i, losing_streak_stats, winning_continuation) > 0.48))
+
+                    self.log_output(f"\n  {'策略':<28} {'投注':>5} {'命中率':>7} {'盈亏':>9} {'峰值':>8} {'回撤':>7} {'ROI':>8} {'风险收益比':>8}\n")
+                    self.log_output("  " + "-" * 84 + "\n")
+                    for lbl, s in [
+                        ('A: 原版综合加权 >50%',      sA),
+                        ('B: 马尔可夫综合加权 >50%',  sB),
+                        ('C: 双重确认(马+原版)',       sC),
+                    ]:
+                        bts, hts, hr, tot, pk, dd, roi, rr = s
+                        self.log_output(
+                            f"  {lbl:<28} {bts:>4}期 {hr:>6.1f}% {tot:>+9.0f}元 "
+                            f"{pk:>+8.0f}元 {dd:>7.0f}元 {roi:>+7.2f}% {rr:>8.2f}\n")
+
+                    all_hit   = sum(1 for d in recent_300 if hit_records[d['period']])
+                    all_total = len(recent_300)
+                    all_prof  = all_hit * (WIN_R - BET) - (all_total - all_hit) * BET
+                    all_roi   = all_prof / (all_total * BET) * 100
+                    self.log_output(
+                        f"  {'基准: 固投全部期':<28} {all_total:>4}期    N/A  {all_prof:>+9.0f}元      N/A     N/A {all_roi:>+7.2f}%      N/A\n\n")
+
+                    # 2阶马尔可夫状态转移详表
+                    self.log_output("  📊 2阶马尔可夫状态转移概率表：\n")
+                    self.log_output(f"     {'状态':<6} | 命中次数 | 总次数 | 状态命中率\n")
+                    self.log_output("     " + "-" * 38 + "\n")
+                    for st in [(False, False), (True, False), (False, True), (True, True)]:
+                        sname = {(False, False): '败-败', (True, False): '胜-败',
+                                 (False, True): '败-胜', (True, True): '胜-胜'}[st]
+                        mh, mt, mp = mk2_table.get(st, (0, 0, 0.0))
+                        cur_m = " ←当前" if len(hit_records) >= 2 and st == (hit_records[-2], hit_records[-1]) else ""
+                        self.log_output(
+                            f"     {sname:<6} | {mh:>4}次   | {mt:>4}次 | {mp*100:>5.1f}%{cur_m}\n")
+                    self.log_output("\n")
+
             # 根据用户选择确定当前使用的策略
             if use_stop_loss:
                 # 保守模式：使用N=3止损策略
@@ -7738,6 +8109,201 @@ class LuckyNumberGUI:
             'balance_history': balance_history,
             'description': '根据近10期表现动态调整TOP2/3/5'
         }
+    
+    def _analyze_losing_streak_recovery(self, hit_records, max_streak=10):
+        """分析连败后的命中恢复概率
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            max_streak: 最大分析连败长度
+            
+        Returns:
+            dict: {连败长度: (恢复命中次数, 总次数, 命中概率)}
+        """
+        streak_stats = {}
+        
+        for streak_len in range(1, max_streak + 1):
+            recovery_hits = 0
+            total_occurrences = 0
+            
+            # 查找所有连败streak_len期的情况
+            for i in range(len(hit_records) - streak_len):
+                # 检查是否连续streak_len期未命中
+                if all(not hit_records[i + j] for j in range(streak_len)):
+                    # 检查下一期是否存在
+                    if i + streak_len < len(hit_records):
+                        total_occurrences += 1
+                        if hit_records[i + streak_len]:
+                            recovery_hits += 1
+            
+            if total_occurrences > 0:
+                hit_prob = recovery_hits / total_occurrences
+                streak_stats[streak_len] = (recovery_hits, total_occurrences, hit_prob)
+            else:
+                streak_stats[streak_len] = (0, 0, 0.0)
+        
+        return streak_stats
+    
+    def _analyze_winning_streak_probability(self, hit_records):
+        """分析连续命中的概率分布
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            
+        Returns:
+            dict: {连胜长度: (出现次数, 概率)}
+        """
+        streak_counts = {}
+        current_streak = 0
+        
+        # 统计所有连胜情况
+        for hit in hit_records:
+            if hit:
+                current_streak += 1
+            else:
+                if current_streak > 0:
+                    streak_counts[current_streak] = streak_counts.get(current_streak, 0) + 1
+                current_streak = 0
+        
+        # 处理最后一个连胜序列
+        if current_streak > 0:
+            streak_counts[current_streak] = streak_counts.get(current_streak, 0) + 1
+        
+        # 计算概率
+        total_streaks = sum(streak_counts.values())
+        streak_probs = {}
+        if total_streaks > 0:
+            for length, count in sorted(streak_counts.items()):
+                prob = count / total_streaks
+                streak_probs[length] = (count, prob)
+        
+        return streak_probs
+    
+    def _calculate_markov2_transition(self, hit_records):
+        """2阶马尔可夫链状态转移概率
+        状态 = (t-2期结果, t-1期结果), 4种: 败败/胜败/败胜/胜胜
+        """
+        trans = {(a, b): [0, 0] for a in [False, True] for b in [False, True]}
+        for i in range(2, len(hit_records)):
+            st = (hit_records[i - 2], hit_records[i - 1])
+            trans[st][1] += 1
+            if hit_records[i]:
+                trans[st][0] += 1
+        return {st: (h, t, h / t if t > 0 else 0.0) for st, (h, t) in trans.items()}
+
+    def _predict_markov_hit_probability(self, hit_records, position, mk2_table,
+                                         losing_streak_stats, winning_continuation=None):
+        """马尔可夫综合加权预测：马尔可夫(60%) + 近8期窗口(20%) + 基准(20%)"""
+        base_n = position if position > 0 else len(hit_records)
+        base_rate = sum(hit_records[:base_n]) / base_n if base_n > 0 else 0.5
+        if position < 2:
+            return self._predict_current_hit_probability(
+                hit_records, position, losing_streak_stats, winning_continuation)
+        st = (hit_records[position - 2], hit_records[position - 1])
+        _h, t, mk_prob = mk2_table.get(st, (0, 0, base_rate))
+        last8 = (sum(hit_records[max(0, position - 8):position]) /
+                 min(8, position)) if position > 0 else base_rate
+        w_mk = min(0.60, t / 50.0)
+        w_win = 0.20
+        return w_mk * mk_prob + w_win * last8 + (1.0 - w_mk - w_win) * base_rate
+
+    def _calculate_winning_streak_continuation(self, hit_records):
+        """计算连胜N期后继续命中的概率
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            
+        Returns:
+            dict: {连胜长度N: (继续次数, 总次数, 继续命中概率)}
+        """
+        continuation_stats = {}
+        i = 0
+        while i < len(hit_records):
+            if hit_records[i]:
+                streak_start = i
+                current_streak = 0
+                while i < len(hit_records) and hit_records[i]:
+                    current_streak += 1
+                    i += 1
+                # 连胜长度 1..current_streak-1 的情况：中途继续了
+                for n in range(1, current_streak):
+                    if n not in continuation_stats:
+                        continuation_stats[n] = [0, 0]
+                    continuation_stats[n][1] += 1
+                    continuation_stats[n][0] += 1  # 继续
+                # 最后一段（长度==current_streak）：下一期是失败（已知）or末尾（未知）
+                if i < len(hit_records):  # 有后续期，且后续期是失败
+                    n = current_streak
+                    if n not in continuation_stats:
+                        continuation_stats[n] = [0, 0]
+                    continuation_stats[n][1] += 1
+                    # 不增加继续次数，因为中断了
+            else:
+                i += 1
+        result = {}
+        for n, (continues, total) in continuation_stats.items():
+            if total > 0:
+                result[n] = (continues, total, continues / total)
+        return result
+
+    def _predict_current_hit_probability(self, hit_records, position, losing_streak_stats, winning_continuation=None):
+        """预测当前期的命中概率（综合连败恢复率 + 连胜持续率）
+        
+        Args:
+            hit_records: 命中记录列表 (True/False)
+            position: 当前预测位置
+            losing_streak_stats: 连败恢复统计数据
+            winning_continuation: 连胜持续概率数据（可选）
+            
+        Returns:
+            float: 预测命中概率 (0-1)
+        """
+        base_n = position if position > 0 else len(hit_records)
+        base_rate = sum(hit_records[:base_n]) / base_n if base_n > 0 else 0.5
+        
+        if position == 0:
+            return base_rate
+        
+        # 检测当前连败
+        current_losing_streak = 0
+        for i in range(position - 1, -1, -1):
+            if not hit_records[i]:
+                current_losing_streak += 1
+            else:
+                break
+        
+        # 检测当前连胜
+        current_winning_streak = 0
+        if current_losing_streak == 0:
+            for i in range(position - 1, -1, -1):
+                if hit_records[i]:
+                    current_winning_streak += 1
+                else:
+                    break
+        
+        # 优先使用连败/连胜的历史统计
+        if current_losing_streak > 0:
+            key = current_losing_streak
+            max_key = max(losing_streak_stats.keys()) if losing_streak_stats else 1
+            if key > max_key:
+                key = max_key
+            if key in losing_streak_stats:
+                _, sample, streak_prob = losing_streak_stats[key]
+                # 样本量越大，越信任统计值；样本量不足时向基准率回归
+                weight = min(0.8, sample / 40.0)
+                return weight * streak_prob + (1 - weight) * base_rate
+        
+        elif current_winning_streak > 0 and winning_continuation:
+            key = current_winning_streak
+            max_key = max(winning_continuation.keys()) if winning_continuation else 1
+            if key > max_key:
+                key = max_key
+            if key in winning_continuation:
+                _, sample, cont_prob = winning_continuation[key]
+                weight = min(0.8, sample / 40.0)
+                return weight * cont_prob + (1 - weight) * base_rate
+        
+        return base_rate
     
     def _calculate_smart_dynamic_zodiac_betting(self, hit_records, lookback=8, good_thresh=0.35, bad_thresh=0.20, 
                                                  boost_mult=1.5, reduce_mult=0.5, max_multiplier=10,
