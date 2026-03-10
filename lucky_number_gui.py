@@ -3533,30 +3533,31 @@ class LuckyNumberGUI:
             from datetime import datetime
             from precise_top15_predictor import PreciseTop15Predictor
             
-            # 最优策略配置（经过对比测试，激进组合更优）
+            # 纯斐波那契倍投策略配置
             config = {
-                'name': '最优智能动态倍投策略 v3.1',
-                'lookback': 12,  # 回看期数（更长窗口，更稳定判断）
-                'good_thresh': 0.35,  # 增强阈值（命中率≥35%时增强）
-                'bad_thresh': 0.20,  # 降低阈值（命中率≤20%时降低）
-                'boost_mult': 1.5,  # 增强倍数（1.2→1.5，更激进增强）
-                'reduce_mult': 1.0,  # 降低倍数（0.8→1.0，保持基础倍数）
+                'name': '纯斐波那契倍投策略 v4.0',
+                'lookback': 12,  # 保留用于显示历史命中率
+                'good_thresh': 0.35,  # 保留参数（不再用于倍数调整）
+                'bad_thresh': 0.20,  # 保留参数（不再用于倍数调整）
+                'boost_mult': 1.5,  # 不再使用
+                'reduce_mult': 1.0,  # 不再使用
                 'max_multiplier': 10,  # 最大倍数限制
                 'base_bet': 15,  # 基础投注
                 'win_reward': 47  # 中奖奖励（实际奖励金额）
             }
             
             self.log_output(f"\n{'='*70}\n")
-            self.log_output(f"🏆 最优智能动态倍投策略分析 v3.2（含暂停策略）\n")
+            self.log_output(f"🏆 最优智能倍投策略分析 v4.0（纯斐波那契+暂停策略）\n")
             self.log_output(f"{'='*70}\n")
             
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.log_output(f"分析时间: {current_time}\n")
-            self.log_output(f"策略版本: {config['name']}（激进组合，含命中1停1期暂停逻辑）\n")
-            self.log_output(f"核心参数: 窗口12期 | 增强≥35%×1.5 | 降低≤20%×1.0 | 命中后暂停1期\n")
-            self.log_output(f"历史测试参考（实际结果可能有所不同）：\n")
-            self.log_output(f"  基础表现: ROI 12.70% | 回撤742元 | 净利润+1374元\n")
-            self.log_output(f"  暂停策略: ROI 18.46% | 回撤可变 | 净利润+1476元 ⭐推荐\n")
+            self.log_output(f"策略版本: 纯斐波那契数列倍投（含命中1停1期暂停逻辑）\n")
+            self.log_output(f"核心参数: 斐波那契数列 [1,1,2,3,5,8,13,21,34,55,89,144] | 命中后暂停1期\n")
+            self.log_output(f"策略特点：\n")
+            self.log_output(f"  - 采用经典斐波那契数列进行倍数递增\n")
+            self.log_output(f"  - 命中后重置倍数，未命中则按数列递增\n")
+            self.log_output(f"  - 命中后暂停1期，降低风险并锁定利润\n")
             self.log_output(f"注意：回撤值受数据周期影响，以实际运行结果为准\n\n")
             
             # 读取数据
@@ -3606,22 +3607,10 @@ class LuckyNumberGUI:
                     return sum(self.recent_results) / len(self.recent_results)
                 
                 def process_period(self, hit):
-                    # ===== 【修复】先计算倍数（基于投注前的历史），再更新历史 =====
+                    # ===== 纯斐波那契倍投策略：直接使用Fibonacci序列，无动态调整 =====
                     
-                    # 获取基础倍数
-                    base_mult = self.get_base_multiplier()
-                    
-                    # 根据最近命中率计算动态倍数（使用投注前的历史数据）
-                    if len(self.recent_results) >= self.cfg['lookback']:
-                        rate = self.get_recent_rate()
-                        if rate >= self.cfg['good_thresh']:
-                            multiplier = min(base_mult * self.cfg['boost_mult'], self.cfg['max_multiplier'])
-                        elif rate <= self.cfg['bad_thresh']:
-                            multiplier = max(base_mult * self.cfg['reduce_mult'], 1)
-                        else:
-                            multiplier = base_mult
-                    else:
-                        multiplier = base_mult
+                    # 获取基础倍数（直接使用斐波那契数列，不做任何调整）
+                    multiplier = self.get_base_multiplier()
                     
                     # 计算投注和收益
                     bet = self.cfg['base_bet'] * multiplier
@@ -3632,18 +3621,18 @@ class LuckyNumberGUI:
                         self.total_win += win
                         profit = win - bet
                         self.balance += profit
-                        self.fib_index = 0
+                        self.fib_index = 0  # 命中后重置为0
                     else:
                         profit = -bet
                         self.balance += profit
-                        self.fib_index += 1
+                        self.fib_index += 1  # 未命中则增加索引
                     
                     # 更新最大回撤（无论命中还是未命中都要检查）
                     if self.balance < self.min_balance:
                         self.min_balance = self.balance
                         self.max_drawdown = abs(self.min_balance)
                     
-                    # 添加结果到历史（在投注和结算之后）
+                    # 添加结果到历史（用于显示，但不影响倍数计算）
                     self.recent_results.append(1 if hit else 0)
                     if len(self.recent_results) > self.cfg['lookback']:
                         self.recent_results.pop(0)
@@ -3652,7 +3641,7 @@ class LuckyNumberGUI:
                         'multiplier': multiplier,
                         'bet': bet,
                         'profit': profit,
-                        'recent_rate': self.get_recent_rate()
+                        'recent_rate': self.get_recent_rate()  # 保留用于显示
                     }
 
             def simulate_with_pause(sequence, pause_length=1):
@@ -3909,7 +3898,8 @@ class LuckyNumberGUI:
                     paused_flag = "暂停" if entry.get('paused') else ""
                     pause_remaining = entry.get('pause_remaining', 0)
                     fib_idx = entry.get('fib_index', 0)
-                    hit_mark = '✓' if entry.get('hit') else ('-' if result == 'SKIP' else '✗')
+                    # 始终显示命中情况，即使在暂停期也显示
+                    hit_mark = '✓' if entry.get('hit') else '✗'
                     self.log_output(
                         f"{period:<8}{date:<12}{actual:<6}{pred_str:<25}"
                         f"{multiplier:<8.2f}{bet_amount:<8.0f}{hit_mark:<6}"
@@ -4045,8 +4035,6 @@ class LuckyNumberGUI:
             
             self.log_output(f"【策略参数】\n")
             self.log_output(f"  回看期数: {config['lookback']}期\n")
-            self.log_output(f"  增强阈值: 命中率>={config['good_thresh']:.0%} → 倍数×{config['boost_mult']}\n")
-            self.log_output(f"  降低阈值: 命中率<={config['bad_thresh']:.0%} → 倍数×{config['reduce_mult']}\n")
             self.log_output(f"  最大倍数: {config['max_multiplier']}倍\n")
             self.log_output(f"  基础投注: {config['base_bet']}元 | 中奖奖励: {config['win_reward']}元\n")
             self.log_output(f"  暂停规则: 命中后暂停1期\n\n")
@@ -4130,15 +4118,6 @@ class LuckyNumberGUI:
             self.log_output(f"    最大回撤点: 第{min_period}期，累计{min_cumulative:+.0f}元\n")
             self.log_output(f"    最长连败: {pause_variant['max_consecutive_losses']}期\n")
             
-            self.log_output(f"  🔄 调整效果:\n")
-            boost_count = sum(1 for r in pause_history if not r.get('paused', False) and r.get('recent_rate', 0) >= config['good_thresh'] and r.get('multiplier', 0) > 1)
-            reduce_count = sum(1 for r in pause_history if not r.get('paused', False) and r.get('recent_rate', 0) <= config['bad_thresh'])
-            pause_count = sum(1 for r in pause_history if r.get('paused', False))
-            self.log_output(f"    增强倍投: {boost_count}次（命中率≥{config['good_thresh']:.0%}时）\n")
-            self.log_output(f"    降低倍投: {reduce_count}次（命中率≤{config['bad_thresh']:.0%}时）\n")
-            self.log_output(f"    暂停投注: {pause_count}次（命中后休息）\n")
-            self.log_output(f"    动态调整有效保护了{pause_variant['max_drawdown']:.0f}元回撤\n\n")
-            
             # 月度表现统计（基于暂停策略）
             self.log_output(f"【月度表现】\n")
             from collections import defaultdict
@@ -4195,19 +4174,7 @@ class LuckyNumberGUI:
             else:
                 self.log_output(f"  🎯 综合评级: ⭐⭐⭐ 需要优化\n\n")
             
-            # 参数优化有效性
-            self.log_output(f"【参数优化有效性】\n")
-            self.log_output(f"  📊 经过A/B测试验证的激进组合参数:\n")
-            self.log_output(f"    • lookback=12期: 更长回看窗口，判断更稳定\n")
-            self.log_output(f"      实现13.56% ROI（激进组合 vs 保守11.65%）\n")
-            self.log_output(f"    • good_thresh≥0.35: 在命中率≥35%时增强倍数\n")
-            self.log_output(f"      把握优势期，提升盈利效率\n")
-            self.log_output(f"    • boost×1.5: 热期激进增强（比1.2x提升25%增幅）\n")
-            self.log_output(f"      单次盈利从38元提升至48元\n")
-            self.log_output(f"    • reduce×0.5: 冷期激进降低（比0.8x更保守）\n")
-            self.log_output(f"      最大回撤从884元降至692元（-21.6%）\n")
-            self.log_output(f"  ✅ 激进组合全面优于保守组合：ROI+16.5%，利润+12.7%，回撤-21.6%！\n\n")
-            
+
             # 下期预测（基于暂停策略）
             self.log_output(f"{'='*70}\n")
             self.log_output(f"第三步：下期投注建议（命中1停1期暂停策略）\n")
