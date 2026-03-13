@@ -3599,6 +3599,9 @@ class LuckyNumberGUI:
                     self.balance = 0
                     self.min_balance = 0
                     self.max_drawdown = 0
+                    # 连续不中资金占用统计
+                    self._streak_loss = 0.0
+                    self.max_streak_loss = 0.0
                 
                 def get_base_multiplier(self):
                     if self.fib_index >= len(fib_sequence):
@@ -3626,10 +3629,14 @@ class LuckyNumberGUI:
                         profit = win - bet
                         self.balance += profit
                         self.fib_index = 0  # 命中后重置为0
+                        self._streak_loss = 0.0  # 命中后重置连挂累计
                     else:
                         profit = -bet
                         self.balance += profit
                         self.fib_index += 1  # 未命中则增加索引
+                        self._streak_loss += bet
+                        if self._streak_loss > self.max_streak_loss:
+                            self.max_streak_loss = self._streak_loss
                     
                     # 更新最大回撤（无论命中还是未命中都要检查）
                     if self.balance < self.min_balance:
@@ -3746,6 +3753,7 @@ class LuckyNumberGUI:
                     'total_profit': total_profit,
                     'roi': roi_pause,
                     'max_drawdown': pause_strategy.max_drawdown,
+                    'max_streak_loss': pause_strategy.max_streak_loss,
                     'wins': wins,
                     'losses': losses,
                     'hit_rate': hit_rate_pause,
@@ -3986,6 +3994,24 @@ class LuckyNumberGUI:
             self.log_output(f"  最长连亏: 基础{max_consecutive_losses}期 vs 暂停{pause_variant['max_consecutive_losses']}期\n")
             self.log_output(f"  触及10倍: 基础{hit_10x_count}次 vs 暂停{pause_variant['hit_10x_count']}次\n\n")
             
+            # 连续不中总额对比
+            base_streak   = strategy.max_streak_loss
+            pause_streak  = pause_variant['max_streak_loss']
+            streak_delta  = base_streak - pause_streak
+            streak_pct    = (streak_delta / base_streak * 100) if base_streak > 0 else 0
+            self.log_output(f"【连续不中总额对比】\n")
+            self.log_output(f"  定义：一轮连续不中期间，累计投出的本金总和（即最大单次备用资金需求）\n")
+            self.log_output(f"  基础策略: {base_streak:.0f}元\n")
+            self.log_output(f"  暂停策略: {pause_streak:.0f}元\n")
+            if streak_delta > 0:
+                self.log_output(f"  ✅ 暂停策略降低连续不中总额 {streak_delta:.0f}元 ({streak_pct:.1f}%)\n")
+                self.log_output(f"     备用资金需求从 {base_streak:.0f}元 降至 {pause_streak:.0f}元\n")
+            elif streak_delta < 0:
+                self.log_output(f"  ⚠️  暂停策略增加连续不中总额 {abs(streak_delta):.0f}元 ({abs(streak_pct):.1f}%)\n")
+            else:
+                self.log_output(f"  ➖ 两策略连续不中总额相同\n")
+            self.log_output(f"  💡 建议备用资金: 基础策略 {base_streak*1.2:.0f}元 / 暂停策略 {pause_streak*1.2:.0f}元（×1.2安全系数）\n\n")
+            
             self.log_output(f"【成本对比】\n")
             self.log_output(f"  投注成本差异: {cost_delta:+.0f}元 ({cost_delta_pct:+.1f}%)\n")
             self.log_output(f"  减少投注: {len(results) - pause_variant['bet_periods']}期\n")
@@ -4064,6 +4090,7 @@ class LuckyNumberGUI:
             self.log_output(f"  净利润: {pause_variant['total_profit']:+.0f}元\n")
             self.log_output(f"  ROI: {pause_variant['roi']:+.2f}%\n")
             self.log_output(f"  最大回撤: {pause_variant['max_drawdown']:.0f}元\n")
+            self.log_output(f"  连续不中总额: {pause_variant['max_streak_loss']:.0f}元\n")
             self.log_output(f"  触及10倍上限: {pause_variant['hit_10x_count']}次\n")
             self.log_output(f"  最长连胜: {pause_max_consecutive_wins}期\n")
             self.log_output(f"  最长连亏: {pause_variant['max_consecutive_losses']}期\n")
@@ -4131,6 +4158,7 @@ class LuckyNumberGUI:
             self.log_output(f"  ⚠️  低谷时刻:\n")
             self.log_output(f"    最大回撤点: 第{min_period}期，累计{min_cumulative:+.0f}元\n")
             self.log_output(f"    最长连败: {pause_variant['max_consecutive_losses']}期\n")
+            self.log_output(f"    连续不中总额(暂停): {pause_variant['max_streak_loss']:.0f}元 / 连续不中总额(基础): {strategy.max_streak_loss:.0f}元\n")
             
             # 月度表现统计（基于暂停策略）
             self.log_output(f"【月度表现】\n")
