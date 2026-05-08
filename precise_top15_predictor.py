@@ -151,8 +151,8 @@ class PreciseTop15Predictor(Top15Predictor):
         sorted_nums = sorted(weighted.items(), key=lambda x: x[1], reverse=True)
         return [num for num, _ in sorted_nums[:k]]
     
-    def predict(self, numbers):
-        """精准预测 - 始终返回15个高质量号码"""
+    def predict(self, numbers, k=15):
+        """精准预测 - 返回k个高质量号码（默认15个，支持自定义）"""
         pattern = self.analyze_pattern(numbers)
         
         # 添加recent_50支持
@@ -162,7 +162,7 @@ class PreciseTop15Predictor(Top15Predictor):
             pattern['recent_50'] = numbers
         
         # 运行多个方法，权重调整
-        base_k = 22
+        base_k = max(22, k + 5)
         methods = [
             (self.method_precision_frequency(pattern, base_k), 0.40),  # 最高权重
             (self.method_zone_dynamic(pattern, base_k), 0.25),
@@ -177,9 +177,9 @@ class PreciseTop15Predictor(Top15Predictor):
                 score = weight * (1.0 - rank / len(candidates))
                 scores[num] = scores.get(num, 0) + score
         
-        # 始终返回15个号码
+        # 返回k个号码
         final = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        return [num for num, _ in final[:15]]
+        return [num for num, _ in final[:k]]
     
     def get_analysis(self, numbers):
         """获取详细分析"""
