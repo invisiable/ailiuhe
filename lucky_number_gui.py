@@ -26,6 +26,7 @@ from zodiac_top4_v3_predictor import ZodiacTop4V3Predictor, NUM_TO_ZODIAC_2026, 
 from zodiac_top9_predictor import ZodiacTop9Predictor  # 生肖TOP9预测器(85%命中率)
 from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor  # 蒸馏TOP4置信度分层(53.3%)
 from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor  # 蒸馏TOP4反miss(52.3%)
+from distill_top15_predictor import DistillTop15Predictor  # 蒸馏TOP15(TOP9生肖过滤×Top15号码模型)
 #import matplotlib.pyplot as plt
 #from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
@@ -498,6 +499,13 @@ class LuckyNumberGUI:
             state='normal', width=20
         )
         self.distill_antimiss_button.grid(row=3, column=7, padx=5, pady=5)
+        
+        # 蒸馏TOP15按钮(TOP9生肖过滤×Top15号码模型)
+        self.distill_top15_button = ttk.Button(
+            pred_frame, text="🧪 蒸馏TOP15投注", command=self.analyze_distill_top15,
+            state='normal', width=20
+        )
+        self.distill_top15_button.grid(row=3, column=8, padx=5, pady=5)
         
         # 第二行：TOP15投注类按钮
         # TOP15投注策略分析按钮
@@ -3260,10 +3268,10 @@ class LuckyNumberGUI:
                 return
             
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
-            self.log_output(f"分析期数: 最近300期\n\n")
+            self.log_output(f"分析期数: 最近400期\n\n")
             
-            # 300期回测
-            test_periods = min(300, len(df))
+            # 400期回测
+            test_periods = min(400, len(df))
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*70}\n")
@@ -3823,7 +3831,7 @@ class LuckyNumberGUI:
             self.log_output(f"  • 最小样本数: {config['min_samples']} | 模式窗口: {config['pattern_len']}期\n")
             self.log_output(f"  • vs纯Fib: ROI +5.0%，回撤-76%（447→107元），风险比+426%（4.49→23.62）\n")
             self.log_output(f"策略特点：\n")
-            self.log_output(f"  - 预测TOP{PREDICT_K}号码（300期验证: 36.0%命中率，赔率{47/PREDICT_K:.2f}倍）\n")
+            self.log_output(f"  - 预测TOP{PREDICT_K}号码（400期验证: 36.0%命中率，赔率{47/PREDICT_K:.2f}倍）\n")
             self.log_output(f"  - 马尔可夫动态倍投，最大倍数=10（回撤低，ROI高）\n")
             self.log_output(f"  - 命中后重置倍数+暂停1期（风险收益比23.62）\n")
             self.log_output(f"  - 每期仅用最近25期数据训练\n")
@@ -3839,8 +3847,8 @@ class LuckyNumberGUI:
             
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n\n")
             
-            # 300期回测
-            test_periods = min(300, len(df) - 50)
+            # 400期回测
+            test_periods = min(400, len(df) - 50)
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*70}\n")
@@ -4136,13 +4144,13 @@ class LuckyNumberGUI:
                     current_wins = 0
                     max_consecutive_losses = max(max_consecutive_losses, current_losses)
             
-            # 先输出最近300期详情
+            # 先输出最近400期详情
             self.log_output(f"{'='*70}\n")
-            self.log_output(f"第一步：最近300期投注详情\n")
+            self.log_output(f"第一步：最近400期投注详情\n")
             self.log_output(f"{'='*70}\n\n")
             
-            # 获取最近300期数据
-            recent_300 = results[-300:] if len(results) > 300 else results
+            # 获取最近400期数据
+            recent_300 = results[-400:] if len(results) > 400 else results
 
             # 预计算马尔可夫所需数据（用于详情表预测率列）
             hit_records_t15   = [r['hit'] for r in results]
@@ -4194,11 +4202,11 @@ class LuckyNumberGUI:
             
             self.log_output(f"\n💡 说明：期号=相对期号 | 预测TOP15=显示前5个 | 倍数=投注倍数 | 12期率=最近12期命中率 | 预测率=马尔可夫综合预测命中概率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
 
-            # 追加命中1停1期版本的最近300期详情
-            pause_history = pause_variant['history'][-300:] if len(pause_variant['history']) > 300 else pause_variant['history']
+            # 追加命中1停1期版本的最近400期详情
+            pause_history = pause_variant['history'][-400:] if len(pause_variant['history']) > 400 else pause_variant['history']
             if pause_history:
                 self.log_output(f"{'='*70}\n")
-                self.log_output(f"最近300期详情（命中1停1期 + 暂停状态）\n")
+                self.log_output(f"最近400期详情（命中1停1期 + 暂停状态）\n")
                 self.log_output(f"{'='*70}\n")
                 self.log_output(f"展示期数：最近{len(pause_history)}期（含暂停期）\n")
                 self.log_output(f"暂停期间命中{pause_variant['paused_hit_count']}次，触发{pause_variant['pause_trigger_count']}次\n\n")
@@ -4619,8 +4627,8 @@ class LuckyNumberGUI:
                 self.log_output(f"     {_sn:<6} | {_mh:>4}次   | {_mt:>4}次 | {_mp*100:>5.1f}%{_cur}\n")
             self.log_output("\n")
 
-            # 三策略过滤验证（最近300期）
-            r300_t15       = results[-300:] if len(results) > 300 else results
+            # 三策略过滤验证（最近400期）
+            r300_t15       = results[-400:] if len(results) > 400 else results
             r300_start_t15 = len(results) - len(r300_t15)
 
             def _val_t15(cond_fn):
@@ -5366,8 +5374,8 @@ class LuckyNumberGUI:
             self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
             self.log_output(f"最新期数: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号 ({df.iloc[-1]['animal']})\n\n")
             
-            # 分析最近200期
-            test_periods = min(200, len(df))
+            # 分析最近400期
+            test_periods = min(400, len(df))
             start_idx = len(df) - test_periods
             
             self.log_output(f"{'='*80}\n")
@@ -6126,7 +6134,7 @@ class LuckyNumberGUI:
                 self.log_output(f"  最大回撤: {fib_stop_loss_result['max_drawdown']:.2f}元\n\n")
                 
                 # 详细每期收益记录
-                self.log_output(f"最近200期详细收益记录：\n")
+                self.log_output(f"最近400期详细收益记录：\n")
                 self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<8} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10} {'状态':<12}\n")
                 self.log_output("-" * 135 + "\n")
                 
@@ -6228,7 +6236,7 @@ class LuckyNumberGUI:
             
             # 详细倍投收益记录（使用最佳策略，限制最大倍数5倍）
             self.log_output(f"{'='*80}\n")
-            self.log_output(f"第六步：最近200期倍投收益详情（{best_name}，最大倍数5倍）\n")
+            self.log_output(f"第六步：最近400期倍投收益详情（{best_name}，最大倍数5倍）\n")
             self.log_output(f"{'='*80}\n")
             self.log_output(f"说明：为控制风险，倍数上限设为5倍\n\n")
             self.log_output(f"{'期数':<8} {'日期':<12} {'实际':<6} {'预测TOP5':<25} {'倍数':<6} {'投注':<8} {'结果':<6} {'当期收益':<10} {'累计收益':<10} {'2026累计':<10}\n")
@@ -6715,7 +6723,7 @@ class LuckyNumberGUI:
             self.log_output(f"• 随机基线: 75.0%, 提升+10.0%\n\n")
             
             # 回测
-            test_periods = min(300, len(df) - 20)
+            test_periods = min(400, len(df) - 20)
             start_idx = len(df) - test_periods
             
             predictor = ZodiacTop9Predictor()
@@ -6886,7 +6894,7 @@ class LuckyNumberGUI:
             self.log_output(f"• 随机基线: 33.3%\n\n")
 
             # 回测
-            test_periods = min(300, len(df) - 20)
+            test_periods = min(400, len(df) - 20)
             start_idx = len(df) - test_periods
             predictor = DistillTop4ConfidencePredictor()
             hit_records = []
@@ -7176,6 +7184,206 @@ class LuckyNumberGUI:
             bet_cost = len(predicted) * 4
             self.log_output(f"投注成本: {bet_cost}元/倍 ({len(predicted)}生肖×4元)\n")
             self.log_output(f"命中奖励: 46元/倍, 净利润: +{46-bet_cost}元/倍\n")
+
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_distill_top15(self):
+        """蒸馏TOP15: TOP9生肖过滤 × Top15号码模型"""
+        try:
+            from datetime import datetime
+            from distill_top15_predictor import DistillTop15Predictor, NUM_TO_ZODIAC_2026, ZODIAC_NUMS_2026
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🧪 蒸馏TOP15投注策略 - TOP9生肖过滤 × Top15号码模型\n")
+            self.log_output(f"{'='*80}\n")
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            numbers = df['number'].values.tolist()
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期")
+                return
+
+            self.log_output(f"✅ 数据加载: {len(df)}期\n")
+            self.log_output(f"最新: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号\n\n")
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"策略说明 (蒸馏TOP15 = TOP9生肖过滤 × PreciseTop15精准模型)\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"• Stage1: PreciseTop15Predictor(精准TOP15) → 49个号码评分排序\n")
+            self.log_output(f"• Stage2: TOP9生肖预测(85%命中率) → ~37个候选号码池\n")
+            self.log_output(f"• Stage3: 从Top15中移除不在TOP9生肖中的号码\n")
+            self.log_output(f"• Stage4: 从扩展排名中补充(仅限TOP9池内)直到凑满15个\n")
+            self.log_output(f"• 反miss: 连续miss≥2期时, 自动扩展到TOP20(成本20元/倍)\n")
+            self.log_output(f"• Fibonacci倍投: 不中→Fib递进(最高13倍), 命中→重置1倍\n")
+            self.log_output(f"• 正常成本: 15元/倍, 扩展成本: 20元/倍, 命中赔47元/倍\n\n")
+
+            # 回测
+            test_periods = min(360, len(df) - 30)
+            start_idx = len(df) - test_periods
+            predictor = DistillTop15Predictor()
+            hit_records = []
+            total_cost = 0
+            total_reward = 0
+            balance = 0
+            peak = 0
+            max_drawdown = 0
+            mode_records = []
+            fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+            fib_index = 0
+            fib_records = []
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"最近{test_periods}期回测详情 (Fibonacci倍投)\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"{'期号':>5} {'日期':>12} {'实际':>4} {'结果':>4} {'K':>3} {'Fib':>4} {'投注额':>6} {'赔付':>6} {'收益':>7} {'累计':>7} {'模式':>16}\n")
+            self.log_output(f"{'-'*90}\n")
+
+            for i in range(start_idx, len(df)):
+                hist_numbers = numbers[:i]
+                actual_num = numbers[i]
+                current_k = predictor._get_current_k()
+                mode_str = predictor.get_mode()
+                final_nums, details, top9_z = predictor.predict_with_details(hist_numbers, top_n=current_k)
+                hit = actual_num in final_nums
+                hit_records.append(hit)
+
+                fib_mul = min(fib_sequence[min(fib_index, len(fib_sequence) - 1)], 13)
+                bet_amount = current_k * fib_mul
+                total_cost += bet_amount
+
+                if hit:
+                    reward = 47 * fib_mul
+                    total_reward += reward
+                    period_profit = reward - bet_amount
+                    fib_index = 0
+                else:
+                    reward = 0
+                    period_profit = -bet_amount
+                    fib_index = min(fib_index + 1, len(fib_sequence) - 1)
+
+                balance += period_profit
+                peak = max(peak, balance)
+                max_drawdown = max(max_drawdown, peak - balance)
+                mode_records.append(mode_str)
+                fib_records.append(fib_mul)
+
+                predictor.record_result(hit)
+
+                period_idx = i - start_idx + 1
+                mark = "✅" if hit else "❌"
+                date_str = str(df.iloc[i]['date'])
+                self.log_output(f"{period_idx:>5} {date_str:>12} {actual_num:>4} {mark:>4} {current_k:>3} {fib_mul:>4} {bet_amount:>6} {reward:>6} {period_profit:>+7} {balance:>+7} {mode_str:>16}\n")
+
+            # 统计
+            hits = sum(hit_records)
+            hit_rate = hits / test_periods * 100
+            net_profit = total_reward - total_cost
+            roi = net_profit / total_cost * 100
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"回测结果汇总 (Fibonacci倍投)\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"命中: {hits}/{test_periods} = {hit_rate:.1f}%\n")
+            self.log_output(f"总投入: {total_cost}元, 总回报: {total_reward}元\n")
+            self.log_output(f"净利润: {net_profit:+d}元, ROI: {roi:+.1f}%\n")
+            self.log_output(f"最大回撤: {max_drawdown}元\n\n")
+
+            # Fibonacci倍数使用分布
+            from collections import Counter as Ctr
+            fib_usage = {}
+            for fm, h in zip(fib_records, hit_records):
+                if fm not in fib_usage:
+                    fib_usage[fm] = [0, 0]
+                fib_usage[fm][1] += 1
+                if h:
+                    fib_usage[fm][0] += 1
+            self.log_output(f"Fibonacci倍数分布:\n")
+            for fm in sorted(fib_usage.keys()):
+                fh, ft = fib_usage[fm]
+                self.log_output(f"  {fm}倍: {ft}期, 命中{fh}/{ft}={fh/ft*100:.1f}%\n")
+
+            # 分段统计
+            seg_size = 50
+            n_segs = test_periods // seg_size
+            self.log_output(f"\n分段统计(每{seg_size}期):\n")
+            for s in range(n_segs):
+                seg_h = sum(hit_records[s*seg_size:(s+1)*seg_size])
+                seg_rate = seg_h/seg_size*100
+                bar = '█' * int(seg_rate/5) + '░' * (20 - int(seg_rate/5))
+                self.log_output(f"  {s*seg_size+1:>3}-{(s+1)*seg_size:>3}: {seg_h}/{seg_size} = {seg_rate:.0f}% {bar}\n")
+
+            # 最大连续miss
+            max_miss = 0
+            cur_miss = 0
+            for h in hit_records:
+                if not h:
+                    cur_miss += 1
+                    max_miss = max(max_miss, cur_miss)
+                else:
+                    cur_miss = 0
+            self.log_output(f"\n最大连续miss: {max_miss}期\n")
+
+            # 连续miss分布
+            streaks = []
+            c = 0
+            for h in hit_records:
+                if not h: c += 1
+                else:
+                    if c > 0: streaks.append(c)
+                    c = 0
+            if c > 0: streaks.append(c)
+            ge2 = sum(1 for s in streaks if s >= 2)
+            ge3 = sum(1 for s in streaks if s >= 3)
+            self.log_output(f"≥2期连续miss: {ge2}次\n")
+            self.log_output(f"≥3期连续miss: {ge3}次\n")
+
+            # 模式统计
+            self.log_output(f"\n模式统计:\n")
+            for mode, count in Ctr(mode_records).most_common():
+                mode_hits = sum(1 for h, m in zip(hit_records, mode_records) if m == mode and h)
+                self.log_output(f"  {mode}: {count}期, 命中{mode_hits}/{count}={mode_hits/count*100:.1f}%\n")
+
+            # 下一期预测
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔮 下一期蒸馏TOP15预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            predictor_fresh = DistillTop15Predictor()
+            current_k = predictor_fresh._get_current_k()
+            mode_str = predictor_fresh.get_mode()
+            final_nums, details, top9_z = predictor_fresh.predict_with_details(numbers, top_n=current_k)
+
+            self.log_output(f"\n当前模式: {mode_str} (买{current_k}个号, 成本{current_k}元/倍)\n")
+            self.log_output(f"TOP9生肖: {', '.join(top9_z)}\n")
+            top9_all_nums = sorted(set().union(*(set(ZODIAC_NUMS_2026[z]) for z in top9_z)))
+            self.log_output(f"TOP9号码池({details['top9_pool_size']}个): {top9_all_nums}\n")
+            self.log_output(f"\n原始Top15: {details['original_top15']}\n")
+            self.log_output(f"保留({details['kept_count']}个): {details['kept']}\n")
+            self.log_output(f"排除({len(details['excluded'])}个): {details['excluded']} (生肖: {','.join(details['excluded_zodiacs'])})\n")
+            self.log_output(f"补充({details['supplement_count']}个): {details['supplements']}\n")
+
+            self.log_output(f"\n┌─────────────────────────────────────────────────────────┐\n")
+            self.log_output(f"│      🧪 蒸馏TOP{current_k}预测结果                              │\n")
+            self.log_output(f"├─────────────────────────────────────────────────────────┤\n")
+            for i, num in enumerate(final_nums, 1):
+                zodiac = NUM_TO_ZODIAC_2026[num]
+                source = "保留" if num in details['kept'] else "补充"
+                if i <= 5:
+                    marker = "⭐"
+                elif i <= 10:
+                    marker = "✓ "
+                else:
+                    marker = "○ "
+                self.log_output(f"│ {marker} {i:>2}. {num:>2}号  {zodiac}  [{source}]                           │\n")
+            self.log_output(f"└─────────────────────────────────────────────────────────┘\n")
+            self.log_output(f"\n投注成本: {current_k}元/倍, 命中赔47元/倍, 净利={47-current_k}元/倍\n")
 
         except Exception as e:
             self.log_output(f"\n❌ 错误: {str(e)}\n")
