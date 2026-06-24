@@ -1,5 +1,5 @@
 """
-蒸馏TOP15预测器 - TOP9生肖过滤 × PreciseTop15号码模型
+蒸馏TOP15预测器 - TOP9生肖过滤 × PreciseTop15号码模型 (固定15颗)
 ================================================
 流程:
 1. Stage1: PreciseTop15Predictor 对49个号码评分排序
@@ -7,14 +7,7 @@
 3. Stage3: 从PreciseTop15结果中保留在TOP9号码池中的号码
 4. Stage4: 从扩展排名中按序补充(仅限TOP9池内)直到凑满15个
 
-反miss机制:
-- 连续miss≥2期时, 扩展号码数从15→20个(成本从15→20元/倍)
-- 300期验证: 命中41.7%, ROI+18.0%, maxMiss从11降至8
-
-优势:
-- PreciseTop15(精准预测器)提供号码级精确评分
-- TOP9生肖过滤器(85%命中率)排除低概率生肖的号码
-- 两阶段蒸馏 + 反miss动态扩展
+固定15个号码, 不自动扩展。
 """
 import numpy as np
 from collections import Counter
@@ -27,7 +20,7 @@ class DistillTop15Predictor:
     蒸馏TOP15: Top15模型 × TOP9生肖过滤
     用TOP9生肖(85%命中率)过滤Top15号码预测,
     排除不在TOP9生肖中的号码, 从模型扩展排名中补充
-    连续miss≥2期时自动扩展到TOP20
+    固定15个号码
     """
 
     def __init__(self):
@@ -35,31 +28,26 @@ class DistillTop15Predictor:
         self.precise = PreciseTop15Predictor()
         self.zodiac_top9 = ZodiacTop9Predictor()
         self.consecutive_miss = 0
-        # 反miss配置
-        self.expand_threshold = 5   # 连续miss>=5时扩展
-        self.expand_to = 20         # 扩展到20个号码
-        self.base_k = 15            # 基础号码数
+        self.base_k = 15            # 固定15个号码
 
     def predict(self, numbers, top_n=None):
         """
-        蒸馏预测: Top15 × TOP9生肖过滤 (含反miss扩展)
+        蒸馏预测: Top15 × TOP9生肖过滤 (固定15个)
 
         Parameters:
             numbers: 历史号码列表 (1-49)
-            top_n: 返回号码数量 (None=自动根据miss状态决定)
+            top_n: 返回号码数量 (默认15)
 
         Returns:
             list of int: 蒸馏后的号码列表
         """
         if top_n is None:
-            top_n = self._get_current_k()
+            top_n = self.base_k
         result, _, _ = self.predict_with_details(numbers, top_n)
         return result
 
     def _get_current_k(self):
-        """根据连续miss状态决定当前号码数量"""
-        if self.consecutive_miss >= self.expand_threshold:
-            return self.expand_to
+        """返回固定号码数量"""
         return self.base_k
 
     def record_result(self, hit):
@@ -71,10 +59,7 @@ class DistillTop15Predictor:
 
     def get_mode(self):
         """获取当前模式描述"""
-        k = self._get_current_k()
-        if k > self.base_k:
-            return f"反miss扩展(TOP{k}, 连miss={self.consecutive_miss})"
-        return f"正常(TOP{self.base_k})"
+        return f"固定TOP{self.base_k}"
 
     def predict_with_details(self, numbers, top_n=15):
         """

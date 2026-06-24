@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
 from lucky_number_predictor import LuckyNumberPredictor
 from odd_even_predictor import OddEvenPredictor
 from zodiac_super_predictor import ZodiacSuperPredictor
@@ -24,9 +24,14 @@ from betting_strategy import BettingStrategy  # 新增投注策略模块
 from probability_betting_strategy import ProbabilityBettingStrategy, validate_probability_strategy  # 概率预测投注策略
 from zodiac_top4_v3_predictor import ZodiacTop4V3Predictor, NUM_TO_ZODIAC_2026, ZODIAC_NUMS_2026  # 生肖TOP4 v3预测器
 from zodiac_top9_predictor import ZodiacTop9Predictor  # 生肖TOP9预测器(85%命中率)
+from zodiac_top10_predictor import ZodiacTop10Predictor  # 生肖TOP10预测器
 from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor  # 蒸馏TOP4置信度分层(53.3%)
 from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor  # 蒸馏TOP4反miss(52.3%)
 from distill_top15_predictor import DistillTop15Predictor  # 蒸馏TOP15(TOP9生肖过滤×Top15号码模型)
+from distilled_top15_predictor import DistilledTop15Predictor  # 最佳蒸馏TOP15(反模式+PreciseTop15, 36.25%命中, 最大连败9期)
+from tail_digit_predictor import TailDigitPredictor, TailDigitRotationPredictor, TAIL_DIGIT_NUMBERS, number_to_tail  # 尾数预测模型
+from tail_digit_top3_predictor import TailDigitTop3Predictor  # 尾数TOP3预测模型
+from tail_digit_grid_predictor import TailDigitGridPredictor  # 5x2网格区域预测器
 #import matplotlib.pyplot as plt
 #from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import pandas as pd
@@ -219,17 +224,36 @@ class LuckyNumberGUI:
             text_frame, wrap=tk.WORD, width=80, height=12
         )
         self.output_text.pack(fill=tk.BOTH, expand=True)
-        
-        # 图表标签页1：预测对比
+
+        # Tail trend tabs
         chart_frame1 = ttk.Frame(self.notebook)
-        self.notebook.add(chart_frame1, text="预测效果")
+        self.notebook.add(chart_frame1, text="尾数走势")
         self.chart_frame1 = chart_frame1
-        
-        # 图表标签页2：特征重要性
+        ttk.Label(
+            self.chart_frame1,
+            text="点击“尾数走势预测”后，这里会显示尾数坐标图。",
+            foreground="gray"
+        ).pack(pady=20)
+
         chart_frame2 = ttk.Frame(self.notebook)
-        self.notebook.add(chart_frame2, text="特征重要性")
+        self.notebook.add(chart_frame2, text="尾数分析")
         self.chart_frame2 = chart_frame2
-        
+        ttk.Label(
+            self.chart_frame2,
+            text="点击“尾数走势预测”后，这里会显示热度、遗漏和下期预测摘要。",
+            foreground="gray"
+        ).pack(pady=20)
+
+
+        chart_frame3 = ttk.Frame(self.notebook)
+        self.notebook.add(chart_frame3, text="尾数明细300期")
+        self.chart_frame3 = chart_frame3
+        ttk.Label(
+            self.chart_frame3,
+            text="点击“尾数走势预测”后，这里会显示最近300期逐期预测明细。",
+            foreground="gray"
+        ).pack(pady=20)
+
     def setup_prediction_section(self, parent):
         """设置预测区域"""
         
@@ -485,6 +509,13 @@ class LuckyNumberGUI:
             state='normal', width=20
         )
         self.zodiac_top9_button.grid(row=3, column=5, padx=5, pady=5)
+
+        # 生肖TOP10按钮
+        self.zodiac_top10_button = ttk.Button(
+            pred_frame, text="🎯 生肖TOP10", command=self.analyze_zodiac_top10,
+            state='normal', width=20
+        )
+        self.zodiac_top10_button.grid(row=5, column=4, padx=5, pady=5)
         
         # 蒸馏TOP4 置信度分层按钮(53.3%命中率)
         self.distill_confidence_button = ttk.Button(
@@ -506,6 +537,13 @@ class LuckyNumberGUI:
             state='normal', width=20
         )
         self.distill_top15_button.grid(row=3, column=8, padx=5, pady=5)
+        
+        # 最佳蒸馏TOP15按钮(反模式+PreciseTop15, 36.25%命中, 最大连败9期)
+        self.best_distilled_top15_button = ttk.Button(
+            pred_frame, text="⭐ 最佳蒸馏15", command=self.analyze_best_distilled_top15,
+            state='normal', width=20
+        )
+        self.best_distilled_top15_button.grid(row=3, column=9, padx=5, pady=5)
         
         # 第二行：TOP15投注类按钮
         # TOP15投注策略分析按钮
@@ -551,10 +589,58 @@ class LuckyNumberGUI:
         )
         self.top15_detail_button.grid(row=5, column=1, padx=5, pady=5)
         
+        # 延迟Fib优化投注按钮
+        self.delayed_fib_button = ttk.Button(
+            pred_frame, text="🎯 延迟Fib优化投注", command=self.analyze_delayed_fib_betting,
+            state='normal', width=25
+        )
+        self.delayed_fib_button.grid(row=5, column=2, padx=5, pady=5)
         
+        # 尾数预测按钮
+        self.tail_digit_button = ttk.Button(
+            pred_frame, text="🔢 尾数走势预测", command=self.analyze_tail_digit,
+            state='normal', width=20
+        )
+        self.tail_digit_button.grid(row=5, column=3, padx=5, pady=5)
+        
+        # 尾数TOP3预测按钮
+        self.tail_top3_button = ttk.Button(
+            pred_frame, text="🔢 尾数TOP3投注", command=self.analyze_tail_digit_top3,
+            state='normal', width=20
+        )
+        self.tail_top3_button.grid(row=6, column=0, padx=5, pady=5)
+        
+        # 5x2网格区域预测按钮
+        self.tail_grid_button = ttk.Button(
+            pred_frame, text="🔲 网格区域预测", command=self.analyze_tail_digit_grid,
+            state='normal', width=20
+        )
+        self.tail_grid_button.grid(row=6, column=1, padx=5, pady=5)
+
+        # 量化投注按钮
+        self.quant_button = ttk.Button(
+            pred_frame, text="📊 量化投注", command=self.analyze_quantitative_betting,
+            state='normal', width=20
+        )
+        self.quant_button.grid(row=6, column=2, padx=5, pady=5)
+
+        # 最优智能TOP20投注按钮
+        self.optimal_top20_button = ttk.Button(
+            pred_frame, text="🏆 最优智能TOP20", command=self.analyze_optimal_smart_betting_top20,
+            state='normal', width=22
+        )
+        self.optimal_top20_button.grid(row=6, column=3, padx=5, pady=5)
+
+        # 蒸馏TOP20按钮（TOP20 ∩ 生肖TOP9）
+        self.distilled_top20_button = ttk.Button(
+            pred_frame, text="🔬 蒸馏TOP20", command=self.analyze_distilled_top20,
+            state='normal', width=22
+        )
+        self.distilled_top20_button.grid(row=7, column=0, padx=5, pady=5)
+
         # 预测结果显示区域
         result_frame = ttk.Frame(pred_frame)
-        result_frame.grid(row=6, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
+        result_frame.grid(row=8, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
         result_frame.columnconfigure(0, weight=1)
         
         self.result_text = scrolledtext.ScrolledText(
@@ -750,6 +836,730 @@ class LuckyNumberGUI:
         except:
             pass
     
+
+
+    def _load_tail_history_dataframe(self):
+        """Load the current tail-digit history dataset."""
+        file_path = self.file_path_var.get().strip() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"数据文件不存在: {file_path}")
+
+        raw_df = pd.read_csv(file_path, encoding='utf-8-sig')
+        if raw_df.empty:
+            raise ValueError("数据文件为空")
+
+        number_column = self.number_column_var.get().strip() if self.number_column_var.get() else ''
+        if not number_column or number_column not in raw_df.columns:
+            for col in raw_df.columns:
+                col_name = str(col).lower()
+                if 'number' in col_name or '数字' in str(col):
+                    number_column = col
+                    break
+        if not number_column or number_column not in raw_df.columns:
+            raise ValueError("未找到数字列，请先选择正确的数字列")
+
+        date_column = self.date_column_var.get().strip() if self.date_column_var.get() else ''
+        if date_column and date_column not in raw_df.columns:
+            date_column = ''
+        if not date_column:
+            for col in raw_df.columns:
+                col_name = str(col).lower()
+                if 'date' in col_name or '日期' in str(col) or 'time' in col_name:
+                    date_column = col
+                    break
+
+        history_df = pd.DataFrame()
+        history_df['number'] = pd.to_numeric(raw_df[number_column], errors='coerce')
+        if date_column:
+            history_df['date'] = raw_df[date_column].astype(str)
+        else:
+            history_df['date'] = [f'第{i + 1}期' for i in range(len(raw_df))]
+
+        history_df = history_df.dropna(subset=['number']).copy()
+        history_df['number'] = history_df['number'].astype(int)
+        history_df = history_df[history_df['number'].between(1, 49)].copy()
+        if history_df.empty:
+            raise ValueError("可用号码为空，请检查数字列是否为1-49之间的号码")
+
+        history_df.reset_index(drop=True, inplace=True)
+        history_df['tail'] = history_df['number'].apply(number_to_tail)
+        history_df['period'] = np.arange(1, len(history_df) + 1)
+        history_df['date_label'] = history_df['date'].apply(self._format_tail_date_label)
+        return history_df, file_path, number_column, date_column
+
+    def _format_tail_date_label(self, value):
+        """Format x-axis labels for the tail chart."""
+        text = str(value)
+        parsed = pd.to_datetime(text, errors='coerce')
+        if pd.notna(parsed):
+            return parsed.strftime('%m/%d')
+        return text if len(text) <= 8 else text[-8:]
+
+    def _get_tail_gap(self, tails, target_tail):
+        """Get how many periods since the target tail last appeared."""
+        for offset, tail in enumerate(reversed(tails)):
+            if tail == target_tail:
+                return offset
+        return len(tails)
+
+    def _normalize_tail_score_map(self, score_map):
+        """Normalize a tail-score mapping to 0-1 for easier blending."""
+        if not score_map:
+            return {d: 0.0 for d in range(10)}
+
+        values = list(score_map.values())
+        min_v = min(values)
+        max_v = max(values)
+        spread = max_v - min_v
+        if spread <= 1e-9:
+            return {d: 1.0 for d in score_map}
+        return {d: (score_map[d] - min_v) / spread for d in score_map}
+
+    def _estimate_tail_three_step_probs(self, tails):
+        """Estimate which tails are most likely to appear within the next 3 periods."""
+        if len(tails) < 2:
+            return {d: 0.5 for d in range(10)}
+
+        matrix = np.full((10, 10), 0.2, dtype=float)
+        for prev_tail, next_tail in zip(tails[:-1], tails[1:]):
+            matrix[prev_tail, next_tail] += 1.0
+        matrix = matrix / matrix.sum(axis=1, keepdims=True)
+
+        state = np.zeros(10, dtype=float)
+        state[tails[-1]] = 1.0
+        step_distributions = []
+        for _ in range(3):
+            state = state @ matrix
+            step_distributions.append(state.copy())
+
+        scores = {}
+        for d in range(10):
+            miss_prob = 1.0
+            weighted_prob = 0.0
+            for weight, dist in zip((0.50, 0.30, 0.20), step_distributions):
+                p = float(dist[d])
+                miss_prob *= max(0.0, 1.0 - p)
+                weighted_prob += weight * p
+            appear_prob = 1.0 - miss_prob
+            scores[d] = 0.70 * appear_prob + 0.30 * weighted_prob
+
+        max_s = max(scores.values()) if scores else 1.0
+        if max_s > 0:
+            scores = {d: s / max_s for d, s in scores.items()}
+        return scores
+
+    def _estimate_tail_pair_transition_scores(self, tails):
+        """Estimate next-tail scores from the latest two-tail path."""
+        if len(tails) < 4:
+            return {d: 0.5 for d in range(10)}
+
+        pair_map = defaultdict(Counter)
+        for idx in range(len(tails) - 2):
+            pair_map[(tails[idx], tails[idx + 1])][tails[idx + 2]] += 1
+
+        current_pair = (tails[-2], tails[-1])
+        if current_pair not in pair_map or not pair_map[current_pair]:
+            return {d: 0.5 for d in range(10)}
+
+        total = sum(pair_map[current_pair].values())
+        scores = {d: pair_map[current_pair].get(d, 0) / total for d in range(10)}
+        return self._normalize_tail_score_map(scores)
+
+    def _estimate_tail_recency_wave_scores(self, tails, window=12):
+        """Estimate hot zones from the recent plotted tail wave."""
+        if not tails:
+            return {d: 0.5 for d in range(10)}
+
+        recent = tails[-window:]
+        scores = {d: 0.0 for d in range(10)}
+        total_weight = 0.0
+        for idx, tail in enumerate(recent, 1):
+            weight = idx / max(1, len(recent))
+            scores[tail] += weight
+            total_weight += weight
+
+        if total_weight > 0:
+            scores = {d: scores[d] / total_weight for d in range(10)}
+        return self._normalize_tail_score_map(scores)
+
+    def _estimate_tail_slope_projection_scores(self, tails):
+        """Project the short-term tail line forward by three periods."""
+        if len(tails) < 6:
+            return {d: 0.5 for d in range(10)}
+
+        recent = tails[-6:]
+        x = np.arange(len(recent))
+        y = np.array(recent, dtype=float)
+        slope, intercept = np.polyfit(x, y, 1)
+        targets = [intercept + slope * (len(recent) - 1 + step) for step in (1, 2, 3)]
+
+        scores = {}
+        for d in range(10):
+            closeness = 0.0
+            for weight, target in zip((0.50, 0.30, 0.20), targets):
+                closeness += weight * max(0.0, 1.0 - abs(d - target) / 5.0)
+            scores[d] = closeness
+        return self._normalize_tail_score_map(scores)
+
+    def _estimate_tail_row_balance_scores(self, tails):
+        """Prefer the upper/lower half that is underrepresented in recent points."""
+        if len(tails) < 3:
+            return {d: 0.5 for d in range(10)}
+
+        recent = tails[-6:]
+        high_count = sum(1 for tail in recent if tail >= 5)
+        low_count = len(recent) - high_count
+        prefer_high = low_count > high_count
+
+        scores = {
+            d: 1.0 if ((d >= 5) == prefer_high) else 0.2
+            for d in range(10)
+        }
+        return self._normalize_tail_score_map(scores)
+
+    def _estimate_tail_gap_band_scores(self, tails):
+        """Score tails by whether they sit in the current sparse band."""
+        if not tails:
+            return {d: 0.5 for d in range(10)}
+
+        gaps = {d: self._get_tail_gap(tails, d) for d in range(10)}
+        avg_gap = float(np.mean(list(gaps.values()))) if gaps else 1.0
+        scores = {
+            d: min(1.0, max(0.0, 0.5 + (gap - avg_gap) / max(3.0, avg_gap)))
+            for d, gap in gaps.items()
+        }
+        return self._normalize_tail_score_map(scores)
+
+    def _estimate_tail_spread_scores(self, tails):
+        """Detect whether the recent chart is clustered or spread and score accordingly."""
+        if len(tails) < 8:
+            return {d: 0.5 for d in range(10)}
+
+        recent = tails[-8:]
+        unique_count = len(set(recent))
+        center = float(np.mean(recent))
+        want_spread = unique_count <= 5
+
+        scores = {}
+        for d in range(10):
+            distance = abs(d - center)
+            scores[d] = distance if want_spread else (5.0 - distance)
+        return self._normalize_tail_score_map(scores)
+
+    def _predict_stable_tail_group(self, numbers, predictor=None, top_n=3):
+        """Predict a 3-period hold group using pure tail-trend distribution rules."""
+        tails = [number_to_tail(n) for n in numbers]
+
+        step_scores = self._estimate_tail_three_step_probs(tails)
+        pair_scores = self._estimate_tail_pair_transition_scores(tails)
+        wave_scores = self._estimate_tail_recency_wave_scores(tails)
+        slope_scores = self._estimate_tail_slope_projection_scores(tails)
+        row_scores = self._estimate_tail_row_balance_scores(tails)
+        gap_scores = self._estimate_tail_gap_band_scores(tails)
+        spread_scores = self._estimate_tail_spread_scores(tails)
+
+        recent_counter = Counter(tails[-5:]) if tails else Counter()
+        trend_scores = {}
+        for d in range(10):
+            repeat_penalty = 0.08 * max(0, recent_counter.get(d, 0) - 1)
+            trend_scores[d] = (
+                0.28 * step_scores.get(d, 0.0) +
+                0.26 * pair_scores.get(d, 0.0) +
+                0.18 * slope_scores.get(d, 0.0) +
+                0.12 * wave_scores.get(d, 0.0) +
+                0.08 * row_scores.get(d, 0.0) +
+                0.04 * gap_scores.get(d, 0.0) +
+                0.04 * spread_scores.get(d, 0.0) -
+                repeat_penalty
+            )
+
+        sorted_scores = sorted(trend_scores.items(), key=lambda item: (-item[1], item[0]))
+        predicted = [d for d, _ in sorted_scores[:top_n]]
+        pair_pick = [d for d, _ in sorted(pair_scores.items(), key=lambda item: (-item[1], item[0]))[:top_n]]
+        wave_pick = [d for d, _ in sorted(wave_scores.items(), key=lambda item: (-item[1], item[0]))[:top_n]]
+
+        return {
+            'predicted': predicted,
+            'scores': dict(sorted_scores),
+            'mode': '\u7eaf\u8d70\u52bf',
+            'rotation_pick': pair_pick,
+            'consensus_pick': wave_pick,
+            'three_step_probs': step_scores,
+            'three_step_top5': sorted(step_scores.items(), key=lambda item: (-item[1], item[0]))[:5],
+        }
+
+    def _backtest_tail_hold_strategy(self, df, test_periods=300, hold_periods=3, top_n=3):
+        """Backtest the tail strategy that keeps one prediction group for up to 3 periods."""
+        numbers = df['number'].tolist()
+        if len(numbers) <= 50:
+            raise ValueError('尾数策略至少需要50期历史数据')
+
+        test_periods = min(test_periods, len(numbers) - 50)
+        start_idx = len(numbers) - test_periods
+
+        hit_records = []
+        all_results = []
+        group_results = []
+
+        current_group = None
+        current_mode = '正常'
+        current_group_id = 0
+        current_hold_step = 0
+        current_group_hits = []
+        current_open_reason = '初始化换组'
+        current_bundle = None
+        group_start_period = None
+        group_start_date = None
+        next_open_reason = '按最新走势换组'
+
+        for i in range(start_idx, len(numbers)):
+            hist = numbers[:i]
+            actual = numbers[i]
+            actual_tail = number_to_tail(actual)
+
+            if current_group is None:
+                current_group_id += 1
+                current_bundle = self._predict_stable_tail_group(hist, top_n=top_n)
+                current_group = list(current_bundle['predicted'])
+                current_mode = current_bundle['mode']
+                current_hold_step = 0
+                current_group_hits = []
+                group_start_period = i - start_idx + 1
+                group_start_date = str(df.iloc[i]['date'])
+                open_reason = current_open_reason
+            else:
+                open_reason = ''
+
+            current_hold_step += 1
+            hit = actual_tail in current_group
+            hit_records.append(hit)
+            current_group_hits.append(hit)
+
+            if hit:
+                status = '命中，本组结束'
+                close_reason = '命中换组'
+            elif current_hold_step >= hold_periods:
+                status = '3期未中，本组结束'
+                close_reason = '3期未中换组'
+            else:
+                status = f'继续持有({current_hold_step}/{hold_periods})'
+                close_reason = ''
+
+            all_results.append({
+                'period': i - start_idx + 1,
+                'date': str(df.iloc[i]['date']),
+                'actual': actual,
+                'tail': actual_tail,
+                'predicted': list(current_group),
+                'hit': hit,
+                'mode': current_mode,
+                'group_id': current_group_id,
+                'hold_step': current_hold_step,
+                'hold_periods': hold_periods,
+                'refresh_reason': open_reason,
+                'status': status,
+            })
+
+            if hit or current_hold_step >= hold_periods:
+                group_results.append({
+                    'group_id': current_group_id,
+                    'predicted': list(current_group),
+                    'mode': current_mode,
+                    'start_period': group_start_period,
+                    'start_date': group_start_date,
+                    'end_period': i - start_idx + 1,
+                    'end_date': str(df.iloc[i]['date']),
+                    'used_periods': current_hold_step,
+                    'hit_any': any(current_group_hits),
+                    'hits': sum(current_group_hits),
+                    'open_reason': current_open_reason,
+                    'close_reason': close_reason,
+                })
+                next_open_reason = '命中后重算' if hit else '3期未中重算'
+                current_group = None
+                current_hold_step = 0
+                current_group_hits = []
+                current_open_reason = next_open_reason
+                current_bundle = None
+
+        if current_group is not None and current_bundle is not None:
+            next_plan = {
+                'predicted': list(current_group),
+                'mode': current_mode,
+                'reason': f'当前继续持有第{current_group_id}组，下一期执行第{current_hold_step + 1}/{hold_periods}期',
+                'group_id': current_group_id,
+                'continue_current': True,
+                'next_hold_step': current_hold_step + 1,
+                'hold_periods': hold_periods,
+                'scores': dict(current_bundle['scores']),
+                'rotation_pick': list(current_bundle['rotation_pick']),
+                'consensus_pick': list(current_bundle['consensus_pick']),
+                'three_step_top5': list(current_bundle['three_step_top5']),
+            }
+        else:
+            next_bundle = self._predict_stable_tail_group(numbers, top_n=top_n)
+            next_plan = {
+                'predicted': list(next_bundle['predicted']),
+                'mode': next_bundle['mode'],
+                'reason': f'{next_open_reason}，按最新走势切换到新组',
+                'group_id': current_group_id + 1,
+                'continue_current': False,
+                'next_hold_step': 1,
+                'hold_periods': hold_periods,
+                'scores': dict(next_bundle['scores']),
+                'rotation_pick': list(next_bundle['rotation_pick']),
+                'consensus_pick': list(next_bundle['consensus_pick']),
+                'three_step_top5': list(next_bundle['three_step_top5']),
+            }
+
+        hits = sum(hit_records)
+        hit_rate = hits / test_periods * 100 if test_periods else 0.0
+        windows_3 = [any(hit_records[i:i + 3]) for i in range(len(hit_records) - 2)]
+        win3_rate = sum(windows_3) / len(windows_3) * 100 if windows_3 else 0.0
+
+        max_miss = 0
+        cur_miss = 0
+        for hit in hit_records:
+            if hit:
+                cur_miss = 0
+            else:
+                cur_miss += 1
+                max_miss = max(max_miss, cur_miss)
+
+        closed_groups = len(group_results)
+        successful_groups = sum(1 for g in group_results if g['hit_any'])
+        group_success_rate = successful_groups / closed_groups * 100 if closed_groups else 0.0
+        avg_group_len = sum(g['used_periods'] for g in group_results) / closed_groups if closed_groups else 0.0
+
+        return {
+            'test_periods': test_periods,
+            'results': all_results,
+            'hit_records': hit_records,
+            'group_results': group_results,
+            'hits': hits,
+            'hit_rate': hit_rate,
+            'windows_3': windows_3,
+            'win3_rate': win3_rate,
+            'max_miss': max_miss,
+            'closed_groups': closed_groups,
+            'successful_groups': successful_groups,
+            'group_success_rate': group_success_rate,
+            'avg_group_len': avg_group_len,
+            'next_plan': next_plan,
+        }
+
+    def _build_tail_trend_analysis(self, df, next_plan=None):
+        """Build stats and predictions for the 3-period hold tail strategy."""
+        numbers = df['number'].tolist()
+        tails = df['tail'].tolist()
+
+        base_predictor = TailDigitPredictor()
+        _, base_scores, score_details = base_predictor.predict_with_details(numbers, top_n=3)
+        stable_bundle = self._predict_stable_tail_group(numbers, top_n=3)
+
+        recent_10 = tails[-10:]
+        recent_20 = tails[-20:]
+        recent_30 = tails[-30:]
+        recent_counts = Counter(recent_30)
+        gap_map = {tail: self._get_tail_gap(tails, tail) for tail in range(10)}
+        hot_recent = sorted(range(10), key=lambda tail: (-recent_counts.get(tail, 0), tail))[:3]
+        cold_recent = sorted(range(10), key=lambda tail: (-gap_map[tail], tail))[:3]
+
+        trend_scores = score_details.get('trend', {})
+        rising_tails = sorted(trend_scores.items(), key=lambda item: (-item[1], item[0]))[:3]
+
+        latest_tail = tails[-1]
+        transition_counts = Counter(
+            tails[idx + 1] for idx in range(len(tails) - 1)
+            if tails[idx] == latest_tail
+        )
+        transition_total = sum(transition_counts.values())
+        transition_top = transition_counts.most_common(3)
+
+        if next_plan:
+            predicted_top3 = list(next_plan['predicted'])
+            rotation_mode = next_plan['mode']
+            rotation_pick = list(next_plan['rotation_pick'])
+            consensus_pick = list(next_plan['consensus_pick'])
+            three_step_top5 = list(next_plan['three_step_top5'])
+            stable_scores = dict(next_plan['scores'])
+            strategy_stage_text = next_plan['reason']
+        else:
+            predicted_top3 = list(stable_bundle['predicted'])
+            rotation_mode = stable_bundle['mode']
+            rotation_pick = list(stable_bundle['rotation_pick'])
+            consensus_pick = list(stable_bundle['consensus_pick'])
+            three_step_top5 = list(stable_bundle['three_step_top5'])
+            stable_scores = dict(stable_bundle['scores'])
+            strategy_stage_text = '按最新走势生成新组，从第1/3期开始执行'
+
+        coverage_numbers = sorted([num for tail in predicted_top3 for num in TAIL_DIGIT_NUMBERS[tail]])
+        base_score_top5 = sorted(base_scores.items(), key=lambda item: item[1], reverse=True)[:5]
+        stable_score_top5 = sorted(stable_scores.items(), key=lambda item: item[1], reverse=True)[:5]
+
+        return {
+            'latest_date': str(df.iloc[-1]['date']),
+            'latest_number': int(df.iloc[-1]['number']),
+            'latest_tail': latest_tail,
+            'periods': len(df),
+            'recent_10': recent_10,
+            'recent_20': recent_20,
+            'recent_counts': recent_counts,
+            'gap_map': gap_map,
+            'hot_recent': hot_recent,
+            'cold_recent': cold_recent,
+            'rising_tails': rising_tails,
+            'predicted_top3': predicted_top3,
+            'coverage_numbers': coverage_numbers,
+            'rotation_mode': rotation_mode,
+            'rotation_pick': rotation_pick,
+            'consensus_pick': consensus_pick,
+            'three_step_top5': three_step_top5,
+            'strategy_name': '3期固定持有换组',
+            'hold_periods': 3,
+            'strategy_stage_text': strategy_stage_text,
+            'base_score_top5': base_score_top5,
+            'stable_score_top5': stable_score_top5,
+            'transition_top': transition_top,
+            'transition_total': transition_total,
+        }
+
+    def _render_tail_trend_chart(self, df, analysis):
+        """Render the tail-digit trend chart in the notebook."""
+        for widget in self.chart_frame1.winfo_children():
+            widget.destroy()
+
+        wrapper = ttk.Frame(self.chart_frame1, padding=10)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        predicted_text = ' / '.join([f'TOP{i + 1}: 尾数{tail}' for i, tail in enumerate(analysis['predicted_top3'])])
+        ttk.Label(
+            wrapper,
+            text=f"\u84dd\u7ebf=\u5386\u53f2\u5c3e\u6570\u8d70\u52bf\uff0c\u53f3\u4fa7\u6295\u5f71=\u5f53\u524d3\u671f\u6301\u6709\u5019\u9009\u5c3e\u6570\u3002{predicted_text}",
+            foreground="#1d4ed8"
+        ).pack(anchor='w', pady=(0, 8))
+
+        chart_canvas = tk.Canvas(wrapper, bg='white', height=420, highlightthickness=0)
+        x_scroll = ttk.Scrollbar(wrapper, orient=tk.HORIZONTAL, command=chart_canvas.xview)
+        chart_canvas.configure(xscrollcommand=x_scroll.set)
+        chart_canvas.pack(fill=tk.BOTH, expand=True)
+        x_scroll.pack(fill=tk.X, pady=(6, 0))
+
+        total_points = len(df)
+        x_step = 22 if total_points <= 60 else 14 if total_points <= 120 else 10 if total_points <= 240 else 8
+        left_pad, top_pad, right_pad, bottom_pad = 70, 30, 140, 70
+        plot_height = 400
+        plot_width = max(900, left_pad + right_pad + max(total_points - 1, 1) * x_step)
+        chart_canvas.configure(scrollregion=(0, 0, plot_width, plot_height))
+
+        usable_height = plot_height - top_pad - bottom_pad
+
+        def y_for_tail(tail_value):
+            return top_pad + (9 - tail_value) * usable_height / 9
+
+        for tail_value in range(10):
+            y = y_for_tail(tail_value)
+            chart_canvas.create_line(left_pad, y, plot_width - right_pad + 20, y, fill='#e5e7eb')
+            chart_canvas.create_text(left_pad - 18, y, text=str(tail_value), fill='#374151', font=('Consolas', 10))
+
+        chart_canvas.create_line(left_pad, top_pad - 10, left_pad, plot_height - bottom_pad, width=2, fill='#4b5563')
+        chart_canvas.create_line(left_pad, plot_height - bottom_pad, plot_width - right_pad + 20, plot_height - bottom_pad, width=2, fill='#4b5563')
+        chart_canvas.create_text(left_pad - 32, top_pad - 8, text='尾数', fill='#111827', font=('Microsoft YaHei UI', 10, 'bold'))
+        chart_canvas.create_text(plot_width / 2, plot_height - 24, text='日期 / 期数', fill='#111827', font=('Microsoft YaHei UI', 10, 'bold'))
+
+        tick_step = max(1, total_points // 12)
+        points = []
+        recent_start = max(total_points - 12, 0)
+        for idx, row in enumerate(df.itertuples(index=False)):
+            x = left_pad + idx * x_step
+            y = y_for_tail(int(row.tail))
+            points.extend([x, y])
+            dot_color = '#f97316' if idx >= recent_start else '#2563eb'
+            dot_radius = 4 if idx >= recent_start else 3
+            chart_canvas.create_oval(x - dot_radius, y - dot_radius, x + dot_radius, y + dot_radius, fill=dot_color, outline='')
+
+            if idx >= recent_start:
+                chart_canvas.create_text(x, y - 12, text=str(int(row.tail)), fill='#9a3412', font=('Consolas', 8))
+
+            if idx % tick_step == 0 or idx == total_points - 1:
+                chart_canvas.create_line(x, plot_height - bottom_pad, x, plot_height - bottom_pad + 6, fill='#6b7280')
+                chart_canvas.create_text(x, plot_height - bottom_pad + 18, text=row.date_label, fill='#374151', font=('Consolas', 8))
+
+        if len(points) >= 4:
+            chart_canvas.create_line(*points, fill='#2563eb', width=2)
+
+        last_x = left_pad + (total_points - 1) * x_step
+        last_y = y_for_tail(int(df.iloc[-1]['tail']))
+        chart_canvas.create_oval(last_x - 5, last_y - 5, last_x + 5, last_y + 5, fill='#16a34a', outline='')
+        chart_canvas.create_text(last_x, last_y - 18, text='最新', fill='#166534', font=('Microsoft YaHei UI', 9, 'bold'))
+
+        projection_x = left_pad + total_points * x_step + 36
+        chart_canvas.create_line(projection_x, top_pad, projection_x, plot_height - bottom_pad, fill='#d97706', dash=(6, 4))
+        chart_canvas.create_text(projection_x + 16, plot_height - bottom_pad + 16, text='3\u671f\u7ec4', anchor='w', fill='#92400e', font=('Microsoft YaHei UI', 9, 'bold'))
+
+        prediction_colors = ['#dc2626', '#ea580c', '#16a34a']
+        for rank, tail_value in enumerate(analysis['predicted_top3']):
+            pred_x = projection_x + 22 + rank * 24
+            pred_y = y_for_tail(tail_value)
+            chart_canvas.create_line(last_x, last_y, pred_x, pred_y, fill=prediction_colors[rank], dash=(4, 4))
+            chart_canvas.create_oval(pred_x - 5, pred_y - 5, pred_x + 5, pred_y + 5, fill=prediction_colors[rank], outline='')
+            chart_canvas.create_text(pred_x + 10, pred_y, text=f"{rank + 1}:{tail_value}", anchor='w', fill=prediction_colors[rank], font=('Consolas', 9, 'bold'))
+
+    def _build_tail_analysis_text(self, analysis):
+        """Build text summary for tail-digit analysis."""
+        recent_hot_text = ' / '.join([
+            f"\u5c3e\u6570{tail}({analysis['recent_counts'].get(tail, 0)}\u6b21)"
+            for tail in analysis['hot_recent']
+        ])
+        cold_text = ' / '.join([
+            f"\u5c3e\u6570{tail}(\u5df2\u9057\u6f0f{analysis['gap_map'][tail]}\u671f)"
+            for tail in analysis['cold_recent']
+        ])
+        rising_text = ' / '.join([
+            f"\u5c3e\u6570{tail}(\u8d8b\u52bf\u5206{score:.3f})"
+            for tail, score in analysis['rising_tails']
+        ])
+        base_rank_text = ' / '.join([
+            f"\u5c3e\u6570{tail}:{score:.4f}"
+            for tail, score in analysis['base_score_top5']
+        ])
+        stable_rank_text = ' / '.join([
+            f"\u5c3e\u6570{tail}:{score:.4f}"
+            for tail, score in analysis['stable_score_top5']
+        ])
+        rotation_pick_text = '\u3001'.join([f"\u5c3e\u6570{tail}" for tail in analysis['rotation_pick']])
+        consensus_pick_text = '\u3001'.join([f"\u5c3e\u6570{tail}" for tail in analysis['consensus_pick']])
+        three_step_text = ' / '.join([
+            f"\u5c3e\u6570{tail}({score:.3f})"
+            for tail, score in analysis['three_step_top5']
+        ])
+
+        if analysis['transition_total'] > 0:
+            transition_text = ' / '.join([
+                f"\u5c3e\u6570{tail}({count / analysis['transition_total'] * 100:.1f}%)"
+                for tail, count in analysis['transition_top']
+            ])
+        else:
+            transition_text = '\u6837\u672c\u4e0d\u8db3\uff0c\u6682\u4e0d\u505a\u76f8\u90bb\u8f6c\u79fb\u5224\u65ad'
+
+        lines = [
+            '\u5c3e\u6570\u8d70\u52bf\u5206\u6790',
+            '=' * 72,
+            f"\u6700\u65b0\u4e00\u671f: {analysis['latest_date']} - {analysis['latest_number']}\u53f7 (\u5c3e\u6570{analysis['latest_tail']})",
+            f"\u603b\u671f\u6570: {analysis['periods']}\u671f",
+            '',
+            '\u6700\u8fd1\u8d70\u52bf:',
+            f"\u6700\u8fd110\u671f\u5c3e\u6570: {' '.join(map(str, analysis['recent_10']))}",
+            f"\u6700\u8fd120\u671f\u5c3e\u6570: {' '.join(map(str, analysis['recent_20']))}",
+            f"\u6700\u8fd130\u671f\u70ed\u5c3e\u6570: {recent_hot_text}",
+            f"\u5f53\u524d\u51b7\u5c3e\u6570: {cold_text}",
+            f"\u4e0a\u5347\u52a8\u91cf\u6700\u5f3a: {rising_text}",
+            '',
+            '3\u671f\u6301\u6709\u7b56\u7565:',
+            f"\u672a\u67653\u671f\u4e3b\u63a8TOP3: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['predicted_top3']])}",
+            f"\u5f53\u524d\u6267\u884c: {analysis['strategy_stage_text']}",
+            '\u6362\u7ec4\u89c4\u5219: \u547d\u4e2d\u5373\u6362\uff1b\u8fde\u7eed3\u671f\u672a\u4e2d\u4e5f\u6362',
+            f"\u8f6e\u6362\u6a21\u5f0f\u53c2\u8003: {analysis['rotation_mode']}",
+            f"\u8f6e\u6362\u6a21\u578b\u53c2\u8003: {rotation_pick_text}",
+            f"\u7edf\u8ba1\u5171\u8bc6\u53c2\u8003: {consensus_pick_text}",
+            f"\u8986\u76d6\u53f7\u7801: {analysis['coverage_numbers']}",
+            '',
+            '\u672a\u67653\u671f\u6982\u7387\u53c2\u8003:',
+            f"\u4e09\u6b65\u8f6c\u79fbTOP5: {three_step_text}",
+            '',
+            '\u8bc4\u5206\u6392\u540d:',
+            f"\u57fa\u7840\u8d8b\u52bfTOP5: {base_rank_text}",
+            f"3\u671f\u6301\u6709\u7b56\u7565TOP5: {stable_rank_text}",
+            '',
+            '\u76f8\u90bb\u5c3e\u6570\u53c2\u8003:',
+            f"\u5386\u53f2\u4e0a\u5c3e\u6570{analysis['latest_tail']}\u4e4b\u540e\u6700\u5e38\u63a5: {transition_text}",
+        ]
+        return '\n'.join(lines)
+
+    def _render_tail_analysis_panel(self, analysis):
+        """Render the analysis summary panel."""
+        for widget in self.chart_frame2.winfo_children():
+            widget.destroy()
+
+        panel = ttk.Frame(self.chart_frame2, padding=10)
+        panel.pack(fill=tk.BOTH, expand=True)
+
+        text_widget = scrolledtext.ScrolledText(panel, wrap=tk.WORD, font=('Consolas', 10))
+        text_widget.pack(fill=tk.BOTH, expand=True)
+        text_widget.insert('1.0', self._build_tail_analysis_text(analysis))
+        text_widget.config(state='disabled')
+
+    def _show_tail_prediction_summary(self, analysis):
+        """Show a compact summary in the prediction panel."""
+        self.result_text.delete('1.0', tk.END)
+        summary_lines = [
+            '\u5c3e\u6570\u8d70\u52bf\u9884\u6d4b\uff083\u671f\u6301\u6709\u7b56\u7565\uff09',
+            '',
+            f"\u6700\u65b0\u4e00\u671f: {analysis['latest_date']} - {analysis['latest_number']}\u53f7 (\u5c3e\u6570{analysis['latest_tail']})",
+            f"\u5f53\u524d\u6267\u884c: {analysis['strategy_stage_text']}",
+            f"\u5f53\u524d\u9884\u6d4b\u5c3e\u6570: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['predicted_top3']])}",
+            '\u6362\u7ec4\u89c4\u5219: \u547d\u4e2d\u5373\u6362\uff1b3\u671f\u672a\u4e2d\u4e5f\u6362',
+            f"\u8f6e\u6362\u53c2\u8003: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['rotation_pick']])}",
+            f"\u5171\u8bc6\u53c2\u8003: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['consensus_pick']])}",
+            f"\u8986\u76d6\u53f7\u7801: {analysis['coverage_numbers']}",
+            '',
+            f"\u6700\u8fd130\u671f\u70ed\u5c3e\u6570: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['hot_recent']])}",
+            f"\u5f53\u524d\u51b7\u5c3e\u6570: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in analysis['cold_recent']])}",
+        ]
+        self.result_text.insert('1.0', '\n'.join(summary_lines))
+
+    def _render_tail_detail_panel(self, all_results, hit_records, test_periods, title=None):
+        """Render the latest tail-strategy prediction details."""
+        for widget in self.chart_frame3.winfo_children():
+            widget.destroy()
+
+        panel = ttk.Frame(self.chart_frame3, padding=10)
+        panel.pack(fill=tk.BOTH, expand=True)
+
+        text_widget = scrolledtext.ScrolledText(panel, wrap=tk.NONE, font=('Consolas', 10))
+        text_widget.pack(fill=tk.BOTH, expand=True)
+
+        title = title or f'\u6700\u8fd1{test_periods}\u671f\u5c3e\u6570\u9884\u6d4b\u8be6\u60c5'
+        use_hold_columns = bool(all_results) and 'group_id' in all_results[0]
+
+        if use_hold_columns:
+            lines = [
+                title,
+                '=' * 118,
+                f"{'\u671f\u53f7':>4} {'\u65e5\u671f':>12} {'\u53f7\u7801':>4} {'\u5c3e\u6570':>4} {'\u9884\u6d4b\u5c3e\u6570':>12} {'\u7ec4\u6b21':>4} {'\u6301\u6709':>6} {'\u6a21\u5f0f':>6} {'\u7ed3\u679c':>4} {'\u72b6\u6001':<18}",
+                '-' * 118,
+            ]
+
+            for result in all_results:
+                mark = '\u2713' if result['hit'] else '\u2717'
+                pred_str = ','.join([str(d) for d in result['predicted']])
+                hold_str = f"{result.get('hold_step', 0)}/{result.get('hold_periods', 3)}"
+                status = result.get('status', '')
+                lines.append(
+                    f"{result['period']:>4} {result['date']:>12} {result['actual']:>4} {result['tail']:>4} {pred_str:>12} {result['group_id']:>4} {hold_str:>6} {result['mode']:>6} {mark:>4} {status:<18}"
+                )
+        else:
+            lines = [
+                title,
+                '=' * 88,
+                f"{'\u671f\u53f7':>4} {'\u65e5\u671f':>12} {'\u53f7\u7801':>4} {'\u5c3e\u6570':>4} {'\u9884\u6d4b\u5c3e\u6570':>16} {'\u6a21\u5f0f':>6} {'\u7ed3\u679c':>4} {'3\u671f':>4}",
+                '-' * 88,
+            ]
+
+            for i, result in enumerate(all_results):
+                mark = '\u2713' if result['hit'] else '\u2717'
+                pred_str = ','.join([str(d) for d in result['predicted']])
+                if i >= 2:
+                    w3_str = '\u2713' if any(hit_records[i - 2:i + 1]) else '\u2717'
+                else:
+                    w3_str = '--'
+                lines.append(
+                    f"{result['period']:>4} {result['date']:>12} {result['actual']:>4} {result['tail']:>4} {pred_str:>12} {result['mode']:>6} {mark:>4} {w3_str:>4}"
+                )
+
+        text_widget.insert('1.0', '\n'.join(lines))
+        text_widget.config(state='disabled')
+
     def start_training(self):
         """开始训练模型"""
         if not self.data_loaded:
@@ -3783,6 +4593,1696 @@ class LuckyNumberGUI:
             import traceback
             self.log_output(traceback.format_exc())
 
+    def analyze_tail_digit(self):
+        """Tail-digit trend analysis using the 3-period hold strategy."""
+        try:
+            from datetime import datetime
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output("\U0001f522 \u5c3e\u6570\u8d70\u52bf\u9884\u6d4b - 3\u671f\u56fa\u5b9a\u6301\u6709\u6362\u7ec4\u7b56\u7565\n")
+            self.log_output(f"{'='*80}\n")
+
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self.log_output(f"\u5206\u6790\u65f6\u95f4: {current_time}\n\n")
+
+            df, file_path, number_column, date_column = self._load_tail_history_dataframe()
+
+            if len(df) < 50:
+                messagebox.showwarning('\u8b66\u544a', '\u6570\u636e\u4e0d\u8db350\u671f')
+                return
+
+            self.log_output(f"\u2713 \u6570\u636e\u52a0\u8f7d: {len(df)}\u671f\n")
+            self.log_output(f"\u6587\u4ef6: {file_path}\n")
+            self.log_output(f"\u6570\u5b57\u5217: {number_column}\n")
+            if date_column:
+                self.log_output(f"\u65e5\u671f\u5217: {date_column}\n")
+            self.log_output(f"\u6700\u65b0: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}\u53f7 (\u5c3e\u6570{number_to_tail(df.iloc[-1]['number'])})\n\n")
+
+            recent_test_periods = min(300, len(df) - 50)
+            recent_strategy = self._backtest_tail_hold_strategy(df, test_periods=recent_test_periods, hold_periods=3, top_n=3)
+            full_strategy = self._backtest_tail_hold_strategy(df, test_periods=len(df) - 50, hold_periods=3, top_n=3)
+
+            trend_analysis = self._build_tail_trend_analysis(df, next_plan=full_strategy['next_plan'])
+            self._render_tail_trend_chart(df, trend_analysis)
+            self._render_tail_analysis_panel(trend_analysis)
+            self._show_tail_prediction_summary(trend_analysis)
+            self.notebook.select(self.chart_frame1)
+            self.log_output("\U0001f4c8 \u5df2\u5728“\u5c3e\u6570\u8d70\u52bf”\u548c“\u5c3e\u6570\u5206\u6790”\u6807\u7b7e\u9875\u751f\u62103\u671f\u6301\u6709\u7b56\u7565\u56fe\u8868\u4e0e\u6458\u8981\n\n")
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output("\u7b56\u7565\u8bf4\u660e - 3\u671f\u56fa\u5b9a\u6301\u6709\u6362\u7ec4\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output("\u2022 \u6bcf\u6b21\u53ea\u9884\u6d4b3\u4e2a\u5c3e\u6570\uff0c\u5f62\u62101\u7ec4\u56fa\u5b9a\u9884\u6d4b\n")
+            self.log_output("\u2022 \u8fd9\u7ec4\u5c3e\u6570\u6700\u591a\u8fde\u7eed\u6301\u67093\u671f\uff0c\u4e0d\u4f1a\u6bcf\u671f\u90fd\u6539\n")
+            self.log_output("\u2022 3\u671f\u5185\u4efb\u610f\u4e00\u671f\u547d\u4e2d\uff0c\u4e0b\u671f\u7acb\u5373\u57fa\u4e8e\u65b0\u8d70\u52bf\u6362\u7ec4\n")
+            self.log_output("\u2022 \u5982\u679c\u8fde\u7eed3\u671f\u90fd\u672a\u547d\u4e2d\uff0c\u7b2c4\u671f\u5f3a\u5236\u6362\u7ec4\n")
+            self.log_output("\u2022 \u8bc4\u5206\u6539\u4e3a\u504f\u5411\u672a\u67653\u671f\uff1a\u4e09\u6b65\u8f6c\u79fb\u6982\u7387 + \u51b7\u5c3e\u56de\u8865 + \u95f4\u9694\u5468\u671f + \u8f6e\u6362\u5171\u8bc6\n\n")
+
+            self.log_output("\u5c3e\u6570\u5206\u7ec4\u8868:\n")
+            for d in range(10):
+                nums = TAIL_DIGIT_NUMBERS[d]
+                self.log_output(f"  \u5c3e\u6570{d}: {nums} ({len(nums)}\u4e2a)\n")
+            self.log_output("\n")
+
+            all_results = recent_strategy['results']
+            hit_records = recent_strategy['hit_records']
+            group_results = recent_strategy['group_results']
+            test_periods = recent_strategy['test_periods']
+            self._render_tail_detail_panel(all_results, hit_records, test_periods, title=f'\u6700\u8fd1{test_periods}\u671f\u5c3e\u65703\u671f\u6301\u6709\u56de\u6d4b\u8be6\u60c5')
+
+            self.log_output(f"{'='*118}\n")
+            self.log_output(f"\u6700\u8fd1{test_periods}\u671f\u5c3e\u65703\u671f\u6301\u6709\u56de\u6d4b\u8be6\u60c5\n")
+            self.log_output(f"{'='*118}\n")
+            self.log_output(f"{'\u671f\u53f7':>4} {'\u65e5\u671f':>12} {'\u53f7\u7801':>4} {'\u5c3e\u6570':>4} {'\u9884\u6d4b\u5c3e\u6570':>12} {'\u7ec4\u6b21':>4} {'\u6301\u6709':>6} {'\u6a21\u5f0f':>6} {'\u7ed3\u679c':>4} {'\u72b6\u6001':<18}\n")
+            self.log_output(f"{'-'*118}\n")
+
+            for result in all_results:
+                mark = '\u2713' if result['hit'] else '\u2717'
+                pred_str = ','.join([str(d) for d in result['predicted']])
+                hold_str = f"{result['hold_step']}/{result['hold_periods']}"
+                self.log_output(f"{result['period']:>4} {result['date']:>12} {result['actual']:>4} {result['tail']:>4} {pred_str:>12} {result['group_id']:>4} {hold_str:>6} {result['mode']:>6} {mark:>4} {result['status']:<18}\n")
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output("\U0001f4ca \u56de\u6d4b\u7ed3\u679c\u6c47\u603b\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"\u5355\u671f\u547d\u4e2d: {recent_strategy['hits']}/{test_periods} = {recent_strategy['hit_rate']:.1f}%\n")
+            self.log_output(f"\u968f\u673a\u57fa\u7ebf: 30.0% (3/10), \u63d0\u5347: +{recent_strategy['hit_rate'] - 30.0:.1f}%\n")
+            self.log_output(f"\u6210\u7ec4\u547d\u4e2d: {recent_strategy['successful_groups']}/{recent_strategy['closed_groups']} = {recent_strategy['group_success_rate']:.1f}%\n")
+            self.log_output(f"\u6ed1\u52a83\u671f\u7a97\u53e3\u547d\u4e2d: {sum(recent_strategy['windows_3'])}/{len(recent_strategy['windows_3'])} = {recent_strategy['win3_rate']:.1f}%\n")
+            self.log_output(f"\u6700\u5927\u8fde\u7eedmiss: {recent_strategy['max_miss']}\u671f\n")
+            self.log_output(f"\u5e73\u5747\u6bcf\u7ec4\u6301\u6709: {recent_strategy['avg_group_len']:.2f}\u671f\n")
+
+            mode_group_stats = defaultdict(list)
+            for group in group_results:
+                mode_group_stats[group['mode']].append(group['hit_any'])
+            if mode_group_stats:
+                self.log_output("\n\u5206\u7ec4\u6a21\u5f0f\u7edf\u8ba1:\n")
+                for mode, hit_list in mode_group_stats.items():
+                    hit_cnt = sum(hit_list)
+                    rate = hit_cnt / len(hit_list) * 100 if hit_list else 0.0
+                    self.log_output(f"  {mode}: {len(hit_list)}\u7ec4, \u6210\u529f{hit_cnt}\u7ec4 ({rate:.1f}%)\n")
+
+            if group_results:
+                self.log_output("\n\u6700\u8fd110\u7ec4\u6362\u7ec4\u6458\u8981:\n")
+                for group in group_results[-10:]:
+                    pred_str = ','.join([str(d) for d in group['predicted']])
+                    mark = '\u2713' if group['hit_any'] else '\u2717'
+                    self.log_output(f"  \u7b2c{group['group_id']:>3}\u7ec4 [{group['start_period']:>3}-{group['end_period']:>3}] \u5c3e\u6570[{pred_str}] {mark} {group['close_reason']}\n")
+
+            next_plan = full_strategy['next_plan']
+            predicted_tails = next_plan['predicted']
+            all_nums = sorted([n for tail in predicted_tails for n in TAIL_DIGIT_NUMBERS[tail]])
+            total_coverage = len(all_nums)
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output("\U0001f52e \u4e0b\u4e00\u671f\u6267\u884c\u65b9\u6848\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"\u5f53\u524d\u6267\u884c: {next_plan['reason']}\n")
+            self.log_output(f"\u5f53\u524d\u6a21\u5f0f: {next_plan['mode']}\n")
+            self.log_output(f"\u9884\u6d4b\u5c3e\u6570: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in predicted_tails])}\n")
+            self.log_output(f"\u8f6e\u6362\u53c2\u8003: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in next_plan['rotation_pick']])}\n")
+            self.log_output(f"\u5171\u8bc6\u53c2\u8003: {'\u3001'.join([f'\u5c3e\u6570{tail}' for tail in next_plan['consensus_pick']])}\n")
+            self.log_output(f"\u8986\u76d6\u53f7\u7801({total_coverage}\u4e2a): {all_nums}\n")
+            self.log_output(f"\u8986\u76d6\u7387: {total_coverage}/49 = {total_coverage / 49 * 100:.1f}%\n")
+            self.log_output("\u672a\u67653\u671f\u8f6c\u79fb\u6982\u7387TOP5:\n")
+            for tail, score in next_plan['three_step_top5']:
+                selected = ' \u2190 \u5f53\u524d\u7ec4' if tail in predicted_tails else ''
+                self.log_output(f"  \u5c3e\u6570{tail}: {score:.3f}{selected}\n")
+
+        except Exception as e:
+            self.log_output(f"\n\u274c \u9519\u8bef: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_tail_digit_top3(self):
+        """尾数TOP3预测分析 - 纯尾数统计，每次预测3个尾数"""
+        try:
+            from datetime import datetime
+            from tail_digit_top3_predictor import TailDigitTop3Predictor, TAIL_DIGIT_NUMBERS, number_to_tail
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔢 尾数TOP3预测分析 - 纯尾数统计模型\n")
+            self.log_output(f"{'='*80}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            numbers = df['number'].values.tolist()
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期")
+                return
+
+            self.log_output(f"✅ 数据加载: {len(df)}期\n")
+            self.log_output(f"最新: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号 (尾数{number_to_tail(df.iloc[-1]['number'])})\n\n")
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"模型说明 - 尾数TOP3纯统计预测\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"• 每次预测3个尾数(约14-15个号码)\n")
+            self.log_output(f"• 6维统计信号加权: 频率20%+冷号回补25%+趋势20%+周期15%+关联10%+间隔10%\n")
+            self.log_output(f"• 智能轮换: miss后排除上轮预测, 从剩余选TOP3\n")
+            self.log_output(f"• 救援模式: 连miss≥3时切换冷号+间隔+周期评分\n")
+            self.log_output(f"• 随机基线: 30%(3/10), 实测: 34%\n")
+            self.log_output(f"• 三期窗口命中: ~70% (连续3期内至少中1次)\n\n")
+
+            # 尾数分组
+            self.log_output(f"尾数分组表:\n")
+            for d in range(10):
+                nums = TAIL_DIGIT_NUMBERS[d]
+                self.log_output(f"  尾数{d}: {nums} ({len(nums)}个)\n")
+            self.log_output(f"\n")
+
+            # 回测
+            test_periods = min(300, len(df) - 50)
+            start_idx = len(df) - test_periods
+
+            predictor = TailDigitTop3Predictor()
+            hit_records = []
+            all_results = []
+
+            for i in range(start_idx, len(df)):
+                hist = numbers[:i]
+                actual = numbers[i]
+                actual_tail = number_to_tail(actual)
+
+                predicted_tails = predictor.predict(hist, top_n=3)
+                hit = actual_tail in predicted_tails
+                hit_records.append(hit)
+                predictor.record_result(predicted_tails, hit)
+
+                # 确定模式
+                ms = 0
+                for j in range(len(hit_records) - 2, -1, -1):
+                    if not hit_records[j]:
+                        ms += 1
+                    else:
+                        break
+                if ms == 0:
+                    mode = "正常"
+                elif ms == 1:
+                    mode = "轮换1"
+                elif ms == 2:
+                    mode = "轮换2"
+                else:
+                    mode = "救援"
+
+                all_results.append({
+                    'period': i - start_idx + 1,
+                    'date': str(df.iloc[i]['date']),
+                    'actual': actual,
+                    'tail': actual_tail,
+                    'predicted': predicted_tails,
+                    'hit': hit,
+                    'mode': mode,
+                })
+
+            # 输出全部300期详情
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"最近{test_periods}期完整回测详情\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"{'期号':>4} {'日期':>12} {'号码':>4} {'尾数':>4} {'预测尾数':>12} {'模式':>6} {'结果':>4} {'3期':>4}\n")
+            self.log_output(f"{'-'*66}\n")
+
+            for i, r in enumerate(all_results):
+                mark = '\u2713' if r['hit'] else '\u2717'
+                pred_str = ','.join([str(d) for d in r['predicted']])
+
+                # 3-period window
+                if i >= 2:
+                    w3 = any(hit_records[i - 2:i + 1])
+                    w3_str = '\u2713' if w3 else '\u2717'
+                else:
+                    w3_str = '--'
+
+                self.log_output(f"{r['period']:>4} {r['date']:>12} {r['actual']:>4} {r['tail']:>4} {pred_str:>12} {r['mode']:>6} {mark:>4} {w3_str:>4}\n")
+
+            # 汇总统计
+            hits = sum(hit_records)
+            hit_rate = hits / test_periods * 100
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"📊 回测结果汇总\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"单期命中: {hits}/{test_periods} = {hit_rate:.1f}%\n")
+            self.log_output(f"随机基线: 30.0% (3/10), 提升: +{hit_rate - 30:.1f}%\n")
+
+            # 3-period windows
+            windows_3 = [any(hit_records[i:i + 3]) for i in range(len(hit_records) - 2)]
+            win3_rate = sum(windows_3) / len(windows_3) * 100
+            fail3 = len(windows_3) - sum(windows_3)
+            self.log_output(f"\n⭐ 三期窗口命中: {sum(windows_3)}/{len(windows_3)} = {win3_rate:.1f}%\n")
+            self.log_output(f"三期全miss: {fail3}次\n")
+
+            # Max miss
+            max_miss = 0
+            cur_miss = 0
+            for h in hit_records:
+                if not h:
+                    cur_miss += 1
+                    max_miss = max(max_miss, cur_miss)
+                else:
+                    cur_miss = 0
+            self.log_output(f"最大连续miss: {max_miss}期\n")
+
+            # 模式统计
+            self.log_output(f"\n模式统计:\n")
+            mode_data = defaultdict(list)
+            for r in all_results:
+                mode_data[r['mode']].append(r['hit'])
+            for mode in ['正常', '轮换1', '轮换2', '救援']:
+                if mode in mode_data:
+                    h_list = mode_data[mode]
+                    h_cnt = sum(h_list)
+                    rate = h_cnt / len(h_list) * 100
+                    self.log_output(f"  {mode}: {len(h_list)}次, 命中{h_cnt}次 ({rate:.1f}%)\n")
+
+            # 分段统计
+            seg_size = 50
+            n_segs = test_periods // seg_size
+            self.log_output(f"\n分段统计(每{seg_size}期):\n")
+            for s in range(n_segs):
+                seg_h = sum(hit_records[s * seg_size:(s + 1) * seg_size])
+                seg_rate = seg_h / seg_size * 100
+                seg_w3 = [any(hit_records[i:i + 3]) for i in range(s * seg_size, min((s + 1) * seg_size - 2, len(hit_records) - 2))]
+                seg_w3_rate = sum(seg_w3) / len(seg_w3) * 100 if seg_w3 else 0
+                bar = '█' * int(seg_w3_rate / 5) + '░' * (20 - int(seg_w3_rate / 5))
+                self.log_output(f"  {s * seg_size + 1:>3}-{(s + 1) * seg_size:>3}: 命中{seg_rate:.0f}% | 3期窗口{seg_w3_rate:.0f}% {bar}\n")
+
+            # 连续miss分布
+            streaks = []
+            c = 0
+            for h in hit_records:
+                if not h:
+                    c += 1
+                else:
+                    if c > 0:
+                        streaks.append(c)
+                    c = 0
+            if c > 0:
+                streaks.append(c)
+            if streaks:
+                from collections import Counter as Ctr
+                self.log_output(f"\n连续miss分布:\n")
+                streak_counter = Ctr(streaks)
+                for length in sorted(streak_counter.keys()):
+                    self.log_output(f"  {length}期: {streak_counter[length]}次\n")
+
+            # 下一期预测
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔮 下一期预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            predicted_tails, all_scores, mode = predictor.predict_with_details(numbers, top_n=3)
+
+            self.log_output(f"当前模式: {mode}\n\n")
+
+            medals = ['🥇', '🥈', '🥉']
+            total_coverage = 0
+            for idx, d in enumerate(predicted_tails):
+                nums = TAIL_DIGIT_NUMBERS[d]
+                medal = medals[idx] if idx < len(medals) else '📌'
+                score = all_scores.get(d, 0)
+                self.log_output(f"{medal} 尾数{d} → {nums} ({len(nums)}个号码, 得分:{score:.4f})\n")
+                total_coverage += len(nums)
+
+            all_nums = sorted([n for d in predicted_tails for n in TAIL_DIGIT_NUMBERS[d]])
+            self.log_output(f"\n📋 覆盖号码({total_coverage}个): {all_nums}\n")
+            self.log_output(f"覆盖率: {total_coverage}/49 = {total_coverage / 49 * 100:.1f}%\n")
+
+            # 全部尾数得分排名
+            self.log_output(f"\n全部尾数得分:\n")
+            sorted_scores = sorted(all_scores.items(), key=lambda x: x[1], reverse=True)
+            for rank, (d, score) in enumerate(sorted_scores, 1):
+                selected = " ← 选中" if d in predicted_tails else ""
+                self.log_output(f"  第{rank}名: 尾数{d} ({score:.4f}){selected}\n")
+
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_quantitative_betting(self):
+        """量化投注 - 多维评分+自动调参+规则过滤"""
+        try:
+            import threading
+            threading.Thread(target=self._run_quantitative_analysis, daemon=True).start()
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+
+    def _run_quantitative_analysis(self):
+        """量化投注分析主逻辑（在子线程中运行）"""
+        try:
+            from datetime import datetime
+            from quantitative_predictor import (
+                HistoryData, SingleDraw, generate_candidates,
+                validate_quantitative, compute_statistics, auto_tune_rules,
+            )
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"📊 量化投注预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            hd = HistoryData(file_path)
+            draws = hd.draws
+
+            if len(draws) < 50:
+                self.log_output("❌ 数据不足50期，请先加载更多历史数据\n")
+                return
+
+            self.log_output(f"✅ 数据加载: {len(draws)} 期\n")
+            last = draws[-1]
+            self.log_output(f"最新: {last.date} - {last.number}号 ({last.animal}/{last.element}，尾数{last.tail})\n\n")
+
+            # ── 模型说明
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"模型说明 - 量化多维评分\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"评分维度（6项加权综合）:\n")
+            self.log_output(f"  遗漏分    30%: 遗漏越长→越接近轮回→分高\n")
+            self.log_output(f"  近期热度  25%: 近50期指数衰减加权频率\n")
+            self.log_output(f"  全局频率  15%: 历史总出现次数\n")
+            self.log_output(f"  周期偏差  15%: 实际遗漏越接近平均周期→分高\n")
+            self.log_output(f"  尾数热度  10%: 该号尾数的历史出现频率\n")
+            self.log_output(f"  区间比例   5%: 该号所在区间的历史出现率\n")
+            self.log_output(f"\n自动调参: 根据历史分布自动设定遗漏阈值、区间偏好\n\n")
+
+            # ── 自动调参结果展示
+            stats = compute_statistics(draws)
+            rules = auto_tune_rules(draws, stats)
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"自动调参结果\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"遗漏参考区间: {rules.miss_min:.0f} ~ {rules.miss_max:.0f} 期\n")
+            self.log_output(f"冷号最小遗漏: {rules.cold_miss_min} 期\n")
+            self.log_output(f"各区历史占比:\n")
+            zone_names = ['第1区(01-12)', '第2区(13-24)', '第3区(25-37)', '第4区(38-49)']
+            for i, (name, ratio) in enumerate(zip(zone_names, rules.zone_bias)):
+                bar = '█' * int(ratio * 40)
+                self.log_output(f"  {name}: {ratio*100:.1f}% {bar}\n")
+
+            hot_count = len(stats['hot_set'])
+            cold_count = len(stats['cold_set'])
+            self.log_output(f"\n热号({hot_count}个): {sorted(stats['hot_set'])}\n")
+            self.log_output(f"冷号({cold_count}个): {sorted(stats['cold_set'])}\n\n")
+
+            # ── 回测验证（近100期）
+            test_periods = min(100, len(draws) - 30)
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"回测验证（近{test_periods}期滚动）\n")
+            self.log_output(f"{'='*80}\n")
+            val = validate_quantitative(draws, test_periods=test_periods, top_n=15)
+            self.log_output(f"TOP5  命中率: {val['top5_rate']:.1f}%  (随机基准 {5/49*100:.1f}%)\n")
+            self.log_output(f"TOP10 命中率: {val['top10_rate']:.1f}%  (随机基准 {10/49*100:.1f}%)\n")
+            self.log_output(f"TOP15 命中率: {val['top15_rate']:.1f}%  (随机基准 {15/49*100:.1f}%)\n\n")
+
+            # ── 量化推荐候选号码
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"🔮 下一期量化推荐（TOP15）\n")
+            self.log_output(f"{'='*80}\n")
+            candidates, _, _ = generate_candidates(draws, top_n=15)
+
+            header = f"{'排名':>4} {'号码':>4} {'得分':>6} {'遗漏':>5} {'频率':>5} {'区':>5} {'奇偶':>4} {'冷热':>5} {'生肖':>4} {'尾数':>4}\n"
+            self.log_output(header)
+            self.log_output('-' * 65 + '\n')
+
+            medals = {1: '🥇', 2: '🥈', 3: '🥉'}
+            for rank, c in enumerate(candidates, 1):
+                hot_str = '🔥热' if c['is_hot'] else ('❄冷' if c['is_cold'] else ' 正常')
+                oe_str = '奇' if c['is_odd'] else '偶'
+                sb_str = '小' if c['is_small'] else '大'
+                medal = medals.get(rank, '  ')
+                self.log_output(
+                    f"{rank:>4}{medal} {c['num']:>3} {c['score']:>6.4f} {c['miss']:>5} "
+                    f"{c['freq']:>5} 第{c['zone']}区 {oe_str}{sb_str} {hot_str:>5} "
+                    f"{c['zodiac']:>4} 尾{c['tail']}\n"
+                )
+
+            # ── 生肖汇总
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"📋 候选号码按生肖分组\n")
+            self.log_output(f"{'='*80}\n")
+            from collections import defaultdict, Counter
+            zodiac_groups = defaultdict(list)
+            for c in candidates:
+                zodiac_groups[c['zodiac']].append(c['num'])
+            for z, nums in sorted(zodiac_groups.items()):
+                self.log_output(f"  {z}: {nums}\n")
+
+            # ── 投注覆盖建议
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"💰 投注覆盖建议\n")
+            self.log_output(f"{'='*80}\n")
+            top5_nums = [c['num'] for c in candidates[:5]]
+            top10_nums = [c['num'] for c in candidates[:10]]
+            top15_nums = [c['num'] for c in candidates[:15]]
+            self.log_output(f"保守（TOP5）  覆盖{len(top5_nums)}号: {sorted(top5_nums)}\n")
+            self.log_output(f"  覆盖率: {len(top5_nums)/49*100:.1f}%\n\n")
+            self.log_output(f"标准（TOP10） 覆盖{len(top10_nums)}号: {sorted(top10_nums)}\n")
+            self.log_output(f"  覆盖率: {len(top10_nums)/49*100:.1f}%\n\n")
+            self.log_output(f"积极（TOP15） 覆盖{len(top15_nums)}号: {sorted(top15_nums)}\n")
+            self.log_output(f"  覆盖率: {len(top15_nums)/49*100:.1f}%\n\n")
+
+            # ── 当前遗漏最长的号码（补充参考）
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"⏳ 遗漏TOP10（最久未出现）\n")
+            self.log_output(f"{'='*80}\n")
+            miss_sorted = sorted(stats['miss'].items(), key=lambda x: x[1], reverse=True)[:10]
+            for num, m in miss_sorted:
+                in_top15 = '← 已入选' if num in top15_nums else ''
+                self.log_output(f"  号码{num:>3} 遗漏{m:>4}期  {in_top15}\n")
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"✅ 量化投注分析完成\n")
+            self.log_output(f"{'='*80}\n")
+
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_tail_digit_grid(self):
+        """5x2网格区域尾数预测 - 按列(pair)热度+行均衡预测"""
+        try:
+            from datetime import datetime
+            from collections import defaultdict, Counter
+            from tail_digit_grid_predictor import TailDigitGridPredictor, TAIL_DIGIT_NUMBERS, number_to_tail
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔲 5x2网格区域尾数预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            numbers = df['number'].values.tolist()
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期")
+                return
+
+            self.log_output(f"✅ 数据加载: {len(df)}期\n")
+            last = df.iloc[-1]
+            self.log_output(f"最新: {last['date']} - {last['number']}号 (尾数{last['number']%10})\n\n")
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"模型说明 - 5x2网格区域预测\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"网格布局:\n")
+            self.log_output(f"  列(Col):  0   1   2   3   4\n")
+            self.log_output(f"  Row0:     0   1   2   3   4  ← 低区(尾数0-4)\n")
+            self.log_output(f"  Row1:     5   6   7   8   9  ← 高区(尾数5-9)\n")
+            self.log_output(f"\n每列形成一'对': (0,5) (1,6) (2,7) (3,8) (4,9)\n")
+            self.log_output(f"\n评分维度:\n")
+            self.log_output(f"  列热度 40%: 近期该列出现多 → 分高\n")
+            self.log_output(f"  行均衡 35%: 某行出现多 → 另一行的尾数加成(均值回归)\n")
+            self.log_output(f"  衰减频率15%: 指数衰减加权近期频率\n")
+            self.log_output(f"  间隔冷热10%: 距上次出现越久 → 分越高\n")
+            self.log_output(f"\n300期验证(v2): 39.3%单期命中 | 77.9% 3期窗口 | 最大miss 7期\n")
+            self.log_output(f"  (v1无状态版本: 37.3%单期 | 75.2% 3期 | 最大miss 13期)\n\n")
+
+            # 回测
+            test_periods = min(300, len(df) - 50)
+            start_idx = len(df) - test_periods
+
+            predictor = TailDigitGridPredictor()
+            hit_records = []
+            all_results = []
+
+            for i in range(start_idx, len(df)):
+                hist = numbers[:i]
+                actual = numbers[i]
+                actual_tail = actual % 10
+
+                predicted_tails = predictor.predict(hist, top_n=3)
+                hit = actual_tail in predicted_tails
+                predictor.record_result(predicted_tails, hit)  # 更新惩罚/窗口状态
+                hit_records.append(hit)
+
+                all_results.append({
+                    'period': i - start_idx + 1,
+                    'date': str(df.iloc[i]['date']),
+                    'actual': actual,
+                    'tail': actual_tail,
+                    'predicted': predicted_tails,
+                    'hit': hit,
+                    'mode': predictor.miss_streak,  # 记录miss_streak供调试
+                })
+
+            # 回测详情
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"最近{test_periods}期完整回测详情\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"{'期号':>4} {'日期':>12} {'号码':>4} {'尾数':>4} {'预测尾数':>12} {'结果':>4} {'3期':>4}\n")
+            self.log_output(f"{'-'*58}\n")
+
+            for i, r in enumerate(all_results):
+                mark = '\u2713' if r['hit'] else '\u2717'
+                pred_str = ','.join([str(d) for d in r['predicted']])
+                if i >= 2:
+                    w3 = any(hit_records[i-2:i+1])
+                    w3_str = '\u2713' if w3 else '\u2717'
+                else:
+                    w3_str = '--'
+                self.log_output(f"{r['period']:>4} {r['date']:>12} {r['actual']:>4} {r['tail']:>4} {pred_str:>12} {mark:>4} {w3_str:>4}\n")
+
+            # 汇总
+            hits = sum(hit_records)
+            hit_rate = hits / test_periods * 100
+
+            max_miss = 0
+            cur_miss = 0
+            for h in hit_records:
+                if not h:
+                    cur_miss += 1
+                    max_miss = max(max_miss, cur_miss)
+                else:
+                    cur_miss = 0
+
+            windows_3 = [any(hit_records[i:i+3]) for i in range(len(hit_records)-2)]
+            win3_rate = sum(windows_3) / len(windows_3) * 100
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"📊 回测结果汇总\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"单期命中: {hits}/{test_periods} = {hit_rate:.1f}%\n")
+            self.log_output(f"随机基线: 30.0% (3/10), 提升: +{hit_rate-30:.1f}%\n")
+            self.log_output(f"⭐ 三期窗口命中: {sum(windows_3)}/{len(windows_3)} = {win3_rate:.1f}%\n")
+            self.log_output(f"最大连续miss: {max_miss}期\n")
+
+            seg_size = 50
+            n_segs = test_periods // seg_size
+            self.log_output(f"\n分段统计(每{seg_size}期):\n")
+            for s in range(n_segs):
+                seg_h = sum(hit_records[s*seg_size:(s+1)*seg_size])
+                seg_rate = seg_h / seg_size * 100
+                self.log_output(f"  第{s*seg_size+1:>3}-{(s+1)*seg_size:>3}期: {seg_rate:.0f}%\n")
+
+            # 下一期预测
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔮 下一期预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            details = predictor.predict_with_details(numbers)
+            self.log_output(f"\n{details['grid_analysis']}\n\n")
+
+            medals = ['🥇', '🥈', '🥉']
+            total_coverage = 0
+            for idx, d in enumerate(details['top_tails']):
+                nums = TAIL_DIGIT_NUMBERS[d]
+                medal = medals[idx] if idx < len(medals) else '📌'
+                score = details['scores'].get(d, 0)
+                self.log_output(f"{medal} 尾数{d} → {nums} ({len(nums)}个号码, 得分:{score:.4f})\n")
+                total_coverage += len(nums)
+
+            all_nums = sorted([n for d in details['top_tails'] for n in TAIL_DIGIT_NUMBERS[d]])
+            self.log_output(f"\n📋 覆盖号码({total_coverage}个): {all_nums}\n")
+            self.log_output(f"覆盖率: {total_coverage}/49 = {total_coverage/49*100:.1f}%\n")
+
+            self.log_output(f"\n全部尾数得分排名:\n")
+            sorted_scores = sorted(details['scores'].items(), key=lambda x: x[1], reverse=True)
+            for rank, (d, score) in enumerate(sorted_scores, 1):
+                selected = " ← 选中" if d in details['top_tails'] else ""
+                self.log_output(f"  第{rank}名: 尾数{d} ({score:.4f}){selected}\n")
+
+            self.log_output(f"\n当前预测模式: {details['mode']}  连续miss: {details['miss_streak']}\n")
+            self.log_output(f"🎯 当前主导行: {details['dominant_row']}\n")
+            self.log_output(f"📈 均衡回归行: {details['cold_row']}\n")
+            self.log_output(f"🔥 热列(pair): {details['hot_pairs']}\n")
+
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_delayed_fib_betting(self):
+        """延迟Fibonacci优化投注策略 - 3档风格选择"""
+        def ask_and_run():
+            import tkinter.simpledialog as simpledialog
+            choice = simpledialog.askstring(
+                "选择策略风格",
+                "请输入策略编号:\n\n"
+                "1 - 稳健型 (延迟3+max15+停1)\n"
+                "   回撤54元, ROI 31.1%, 风险比36.6\n\n"
+                "2 - 进取型 (延迟2+max20+停1)\n"
+                "   回撤114元, ROI 34.3%, 风险比25.0\n\n"
+                "3 - 极保守型 (延迟4+max13)\n"
+                "   回撤22元, ROI 25.2%, 风险比85.6\n\n"
+                "默认为1(稳健型):",
+                parent=self.root
+            )
+            if choice is None:
+                return
+            style = choice.strip() if choice.strip() in ('1', '2', '3') else '1'
+            threading.Thread(
+                target=self._run_delayed_fib_analysis,
+                args=(style,),
+                daemon=True
+            ).start()
+        self.root.after(0, ask_and_run)
+
+    def _run_delayed_fib_analysis(self, style='1'):
+        """执行延迟Fibonacci优化投注策略分析"""
+        try:
+            from datetime import datetime
+            from collections import defaultdict, Counter
+            import re
+            from precise_top15_predictor import PreciseTop15Predictor
+
+            # 3档配置
+            CONFIGS = {
+                '1': {'name': '稳健型', 'delay': 3, 'max_mul': 15, 'pause': 1,
+                       'desc': '延迟3期+max15+命中停1 | 低回撤高风险比'},
+                '2': {'name': '进取型', 'delay': 2, 'max_mul': 20, 'pause': 1,
+                       'desc': '延迟2期+max20+命中停1 | ROI最高'},
+                '3': {'name': '极保守型', 'delay': 4, 'max_mul': 13, 'pause': 0,
+                       'desc': '延迟4期+max13+不停期 | 回撤极低'},
+            }
+            cfg = CONFIGS[style]
+
+            FIB = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+            BASE_BET = 15
+            WIN_REWARD = 47
+            TRAIN_WINDOW = 25
+
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output(f"🎯 延迟Fibonacci优化投注策略 v1.0\n")
+            self.log_output(f"{'='*70}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n")
+            self.log_output(f"策略风格: {cfg['name']} ({cfg['desc']})\n")
+            self.log_output(f"核心参数: 延迟{cfg['delay']}期平注 → Fibonacci递增 | 最大{cfg['max_mul']}倍 | {'命中停1期' if cfg['pause'] else '不停期'}\n")
+            self.log_output(f"赔付规则: 买15个数, 成本15元/倍, 命中赔47元/倍, 净利=32元/倍\n")
+            self.log_output(f"预测窗口: 最近{TRAIN_WINDOW}期滚动训练\n\n")
+
+            self.log_output(f"策略原理:\n")
+            self.log_output(f"  • 70%连败在2期内结束 → 前{cfg['delay']}期不加倍, 避免无效倍投\n")
+            self.log_output(f"  • 仅在深度连败时启动Fibonacci加倍回本\n")
+            self.log_output(f"  • 去除Markov调整(在延迟Fib上反而增加噪声)\n")
+            if cfg['pause']:
+                self.log_output(f"  • 命中后暂停1期 → 大幅降低回撤\n")
+            self.log_output(f"\n")
+
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期")
+                return
+
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n\n")
+
+            # 回测
+            test_periods = min(400, len(df) - 50)
+            start_idx = len(df) - test_periods
+            predictor = PreciseTop15Predictor()
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"执行回测分析（最近{test_periods}期）...\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 延迟Fib策略模拟器
+            fib_idx = 0
+            balance = 0
+            min_balance = 0
+            max_drawdown = 0
+            total_bet = 0
+            total_win = 0
+            pause_remaining = 0
+            max_streak_loss = 0
+            streak_loss = 0
+            hit_max_count = 0
+            results = []
+
+            for i in range(start_idx, len(df)):
+                period_num = i - start_idx + 1
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
+                predictions = predictor.predict(train_data, k=15)
+                actual = df.iloc[i]['number']
+                date = df.iloc[i]['date']
+                hit = actual in predictions
+
+                if pause_remaining > 0:
+                    pause_remaining -= 1
+                    results.append({
+                        'period': period_num, 'date': date, 'actual': actual,
+                        'predictions': predictions, 'hit': hit,
+                        'multiplier': 0, 'bet': 0, 'profit': 0,
+                        'cumulative': balance, 'fib_idx': fib_idx,
+                        'result': 'SKIP', 'paused': True
+                    })
+                    continue
+
+                # 延迟Fib倍数计算
+                if fib_idx <= cfg['delay'] - 1:
+                    mul = 1
+                else:
+                    fi = fib_idx - cfg['delay'] + 1
+                    mul = min(FIB[min(fi, len(FIB) - 1)], cfg['max_mul'])
+
+                bet = BASE_BET * mul
+                total_bet += bet
+                hit_limit = mul >= cfg['max_mul']
+                if hit_limit:
+                    hit_max_count += 1
+
+                if hit:
+                    win = WIN_REWARD * mul
+                    total_win += win
+                    profit = win - bet
+                    balance += profit
+                    fib_idx = 0
+                    streak_loss = 0
+                    if cfg['pause']:
+                        pause_remaining = cfg['pause']
+                else:
+                    profit = -bet
+                    balance -= bet
+                    fib_idx += 1
+                    streak_loss += bet
+                    max_streak_loss = max(max_streak_loss, streak_loss)
+
+                if balance < min_balance:
+                    min_balance = balance
+                    max_drawdown = abs(min_balance)
+
+                results.append({
+                    'period': period_num, 'date': date, 'actual': actual,
+                    'predictions': predictions, 'hit': hit,
+                    'multiplier': mul, 'bet': bet, 'profit': profit,
+                    'cumulative': balance, 'fib_idx': fib_idx if not hit else 0,
+                    'result': 'WIN' if hit else 'LOSS', 'paused': False,
+                    'hit_limit': hit_limit
+                })
+
+            # 统计
+            bet_results = [r for r in results if r['result'] != 'SKIP']
+            skip_results = [r for r in results if r['result'] == 'SKIP']
+            wins = sum(1 for r in bet_results if r['result'] == 'WIN')
+            losses = sum(1 for r in bet_results if r['result'] == 'LOSS')
+            total_profit = total_win - total_bet
+            roi = (total_profit / total_bet * 100) if total_bet > 0 else 0
+            risk_ratio = (total_profit / max_drawdown) if max_drawdown > 0 else float('inf')
+            hit_rate = wins / len(bet_results) if bet_results else 0
+
+            # 连续统计
+            max_con_wins = max_con_losses = cur_wins = cur_losses = 0
+            for r in bet_results:
+                if r['result'] == 'WIN':
+                    cur_wins += 1; cur_losses = 0
+                    max_con_wins = max(max_con_wins, cur_wins)
+                else:
+                    cur_losses += 1; cur_wins = 0
+                    max_con_losses = max(max_con_losses, cur_losses)
+
+            # 暂停期命中统计
+            paused_hits = sum(1 for r in skip_results if r['hit'])
+
+            # ====== 输出400期详情 ======
+            self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'Fib':<4}{'状态':<6}\n")
+            self.log_output(f"{'-'*110}\n")
+
+            for r in results:
+                pred_str = str(r['predictions'][:5]) + "..."
+                hit_mark = '✓' if r['hit'] else '✗'
+                if r['paused']:
+                    self.log_output(
+                        f"{r['period']:<8}{r['date']:<12}{r['actual']:<6}{pred_str:<25}"
+                        f"{'--':<8}{'--':<8}{hit_mark:<6}{'--':<10}  {r['cumulative']:+12.0f}  {r['fib_idx']:<4}{'暂停':<6}\n"
+                    )
+                else:
+                    limit_mark = '触顶' if r.get('hit_limit') else ''
+                    self.log_output(
+                        f"{r['period']:<8}{r['date']:<12}{r['actual']:<6}{pred_str:<25}"
+                        f"{r['multiplier']:<8}{r['bet']:<8.0f}{hit_mark:<6}"
+                        f"{r['profit']:+10.0f}  {r['cumulative']:+12.0f}  {r['fib_idx']:<4}{limit_mark:<6}\n"
+                    )
+
+            # ====== 核心统计 ======
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output(f"核心统计数据 — {cfg['name']}\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            self.log_output(f"【策略参数】\n")
+            self.log_output(f"  延迟期数: {cfg['delay']}期（前{cfg['delay']}期平注1倍）\n")
+            self.log_output(f"  最大倍数: {cfg['max_mul']}倍\n")
+            self.log_output(f"  暂停规则: {'命中后暂停1期' if cfg['pause'] else '不暂停'}\n")
+            self.log_output(f"  基础投注: {BASE_BET}元 | 中奖奖励: {WIN_REWARD}元\n\n")
+
+            self.log_output(f"【投注表现】\n")
+            self.log_output(f"  总期数: {len(results)}期\n")
+            self.log_output(f"  投注期数: {len(bet_results)}期\n")
+            if skip_results:
+                self.log_output(f"  暂停期数: {len(skip_results)}期（暂停期命中{paused_hits}次）\n")
+            self.log_output(f"  命中/未中: {wins}/{losses}\n")
+            self.log_output(f"  命中率: {hit_rate*100:.2f}%\n\n")
+
+            self.log_output(f"【财务统计】\n")
+            self.log_output(f"  总投注: {total_bet:.0f}元\n")
+            self.log_output(f"  总收益: {total_win:.0f}元\n")
+            self.log_output(f"  净利润: {total_profit:+.0f}元\n")
+            self.log_output(f"  ROI: {roi:+.2f}%\n")
+            self.log_output(f"  平均单期盈利: {total_profit/len(results):.2f}元\n\n")
+
+            self.log_output(f"【风险指标】\n")
+            self.log_output(f"  最大回撤: {max_drawdown:.0f}元\n")
+            self.log_output(f"  连败最大资金占用: {max_streak_loss:.0f}元\n")
+            self.log_output(f"  风险比(利润/回撤): {risk_ratio:.2f}\n")
+            self.log_output(f"  最大连胜: {max_con_wins}期\n")
+            self.log_output(f"  最大连败: {max_con_losses}期\n")
+            self.log_output(f"  触及最大倍数: {hit_max_count}次\n")
+            self.log_output(f"  建议备用资金: {max_streak_loss*1.2:.0f}元（×1.2安全系数）\n\n")
+
+            # ====== 对比当前v6.1 ======
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"对比当前v6.1马尔可夫策略\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 模拟当前v6.1(Fib+Markov+停1)
+            v61_fib_idx = 0
+            v61_balance = 0
+            v61_min_balance = 0
+            v61_total_bet = 0
+            v61_total_win = 0
+            v61_pause = 0
+            v61_pattern_stats = {}
+            v61_recent = []
+            v61_max_streak_loss = 0
+            v61_streak_loss = 0
+            v61_hit_records = []
+
+            for i in range(start_idx, len(df)):
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
+                preds = predictor.predict(train_data, k=15)
+                actual = df.iloc[i]['number']
+                h = actual in preds
+                v61_hit_records.append(h)
+
+                if v61_pause > 0:
+                    v61_pause -= 1
+                    continue
+
+                # Fib base
+                base_mul = min(FIB[min(v61_fib_idx, len(FIB)-1)], 10)
+                # Markov adjustment
+                mul = base_mul
+                if len(v61_recent) >= 2:
+                    pat = tuple(v61_recent[-2:])
+                    stats = v61_pattern_stats.get(pat, [0, 0])
+                    if stats[1] >= 1:
+                        pr = stats[0] / stats[1]
+                        if pr >= 0.35:
+                            mul = round(base_mul * 2.5)
+                        elif pr <= 0.25:
+                            mul = round(base_mul * 0.4)
+                mul = min(max(1, mul), 10)
+
+                bet = BASE_BET * mul
+                v61_total_bet += bet
+                if h:
+                    win = WIN_REWARD * mul
+                    v61_total_win += win
+                    v61_balance += (win - bet)
+                    v61_fib_idx = 0
+                    v61_streak_loss = 0
+                    v61_pause = 1
+                else:
+                    v61_balance -= bet
+                    v61_fib_idx += 1
+                    v61_streak_loss += bet
+                    v61_max_streak_loss = max(v61_max_streak_loss, v61_streak_loss)
+
+                if v61_balance < v61_min_balance:
+                    v61_min_balance = v61_balance
+
+                # update markov
+                if len(v61_recent) >= 2:
+                    pat = tuple(v61_recent[-2:])
+                    if pat not in v61_pattern_stats:
+                        v61_pattern_stats[pat] = [0, 0]
+                    v61_pattern_stats[pat][1] += 1
+                    if h:
+                        v61_pattern_stats[pat][0] += 1
+                v61_recent.append(1 if h else 0)
+                if len(v61_recent) > 12:
+                    v61_recent.pop(0)
+
+            v61_profit = v61_total_win - v61_total_bet
+            v61_dd = abs(v61_min_balance)
+            v61_roi = (v61_profit / v61_total_bet * 100) if v61_total_bet > 0 else 0
+            v61_rr = (v61_profit / v61_dd) if v61_dd > 0 else float('inf')
+
+            self.log_output(f"  {'指标':<16} {'当前v6.1':>12} {'延迟Fib':>12} {'差异':>12}\n")
+            self.log_output(f"  {'-'*56}\n")
+            self.log_output(f"  {'净利润':<16} {v61_profit:>+12.0f} {total_profit:>+12.0f} {total_profit-v61_profit:>+12.0f}\n")
+            self.log_output(f"  {'ROI':<16} {v61_roi:>11.1f}% {roi:>11.1f}% {roi-v61_roi:>+11.1f}%\n")
+            self.log_output(f"  {'最大回撤':<16} {v61_dd:>12.0f} {max_drawdown:>12.0f} {max_drawdown-v61_dd:>+12.0f}\n")
+            self.log_output(f"  {'风险比':<16} {v61_rr:>12.2f} {risk_ratio:>12.2f} {risk_ratio-v61_rr:>+12.2f}\n")
+            self.log_output(f"  {'连败最大资金':<16} {v61_max_streak_loss:>12.0f} {max_streak_loss:>12.0f} {max_streak_loss-v61_max_streak_loss:>+12.0f}\n")
+            self.log_output(f"  {'总投入':<16} {v61_total_bet:>12.0f} {total_bet:>12.0f} {total_bet-v61_total_bet:>+12.0f}\n")
+            self.log_output(f"\n")
+
+            # 评价
+            better_items = 0
+            if roi > v61_roi: better_items += 1
+            if max_drawdown < v61_dd: better_items += 1
+            if risk_ratio > v61_rr: better_items += 1
+
+            if better_items >= 2:
+                self.log_output(f"  ✅ 延迟Fib在{better_items}/3项指标上优于v6.1\n")
+            else:
+                self.log_output(f"  🟡 延迟Fib在{better_items}/3项指标上优于v6.1\n")
+
+            self.log_output(f"  💡 核心优势: 风险比提升{risk_ratio/v61_rr:.1f}倍, 回撤降低{(v61_dd-max_drawdown)/v61_dd*100:.0f}%\n")
+            if total_profit < v61_profit:
+                self.log_output(f"  ⚠️  代价: 绝对利润减少{v61_profit-total_profit:.0f}元（因更保守的加倍策略）\n")
+            self.log_output(f"\n")
+
+            # ====== 3档策略横向对比 ======
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"三档延迟Fib策略对比\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 快速模拟3档
+            all_hits = [r['hit'] for r in results]  # 命中序列已计算
+
+            for s_key, s_cfg in CONFIGS.items():
+                s_fib = 0
+                s_bal = 0
+                s_min = 0
+                s_bet = 0
+                s_win = 0
+                s_p = 0
+                s_sl = 0
+                s_msl = 0
+
+                for r in results:
+                    h = r['hit']
+                    if s_p > 0:
+                        s_p -= 1
+                        continue
+                    if s_fib <= s_cfg['delay'] - 1:
+                        m = 1
+                    else:
+                        fi = s_fib - s_cfg['delay'] + 1
+                        m = min(FIB[min(fi, len(FIB)-1)], s_cfg['max_mul'])
+                    bt = BASE_BET * m
+                    s_bet += bt
+                    if h:
+                        wn = WIN_REWARD * m
+                        s_win += wn
+                        s_bal += (wn - bt)
+                        s_fib = 0
+                        s_sl = 0
+                        if s_cfg['pause']:
+                            s_p = s_cfg['pause']
+                    else:
+                        s_bal -= bt
+                        s_fib += 1
+                        s_sl += bt
+                        s_msl = max(s_msl, s_sl)
+                    if s_bal < s_min:
+                        s_min = s_bal
+
+                s_profit = s_win - s_bet
+                s_dd = abs(s_min)
+                s_roi = (s_profit / s_bet * 100) if s_bet > 0 else 0
+                s_rr = (s_profit / s_dd) if s_dd > 0 else float('inf')
+                marker = " ← 当前" if s_key == style else ""
+                self.log_output(f"  {s_cfg['name']:<10} 利润={s_profit:>+6.0f} 回撤={s_dd:>4.0f} ROI={s_roi:>5.1f}% 风险比={s_rr:>6.2f} 备用资金={s_msl:>4.0f}{marker}\n")
+
+            self.log_output(f"\n  v6.1基准   利润={v61_profit:>+6.0f} 回撤={v61_dd:>4.0f} ROI={v61_roi:>5.1f}% 风险比={v61_rr:>6.2f}\n")
+            self.log_output(f"\n")
+
+            # ====== 月度表现 ======
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"月度表现统计\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            monthly_stats = defaultdict(lambda: {'hits': 0, 'total': 0, 'profit': 0,
+                                                  'start_balance': None, 'year': 0, 'month': 0})
+            for r in results:
+                if r['paused']:
+                    continue
+                date_match = re.match(r'(\d{4})/(\d{1,2})/\d{1,2}', str(r['date']))
+                if date_match:
+                    year = int(date_match.group(1))
+                    month = int(date_match.group(2))
+                    ym = f"{year}年{month}月"
+                    if monthly_stats[ym]['start_balance'] is None:
+                        monthly_stats[ym]['start_balance'] = r['cumulative'] - r['profit']
+                    monthly_stats[ym]['total'] += 1
+                    monthly_stats[ym]['year'] = year
+                    monthly_stats[ym]['month'] = month
+                    if r['result'] == 'WIN':
+                        monthly_stats[ym]['hits'] += 1
+                    monthly_stats[ym]['profit'] = r['cumulative'] - monthly_stats[ym]['start_balance']
+
+            sorted_months = sorted(monthly_stats.keys(),
+                                   key=lambda x: (monthly_stats[x]['year'], monthly_stats[x]['month']))
+            if sorted_months:
+                best_month = max(monthly_stats.items(), key=lambda x: x[1]['profit'])
+                for mo in sorted_months:
+                    st = monthly_stats[mo]
+                    hr_m = st['hits'] / st['total'] * 100 if st['total'] > 0 else 0
+                    marker = " 📈" if mo == best_month[0] else ""
+                    self.log_output(f"  {mo}: {st['total']}期 命中{hr_m:.1f}% 盈利{st['profit']:+.0f}元{marker}\n")
+                self.log_output(f"  最佳月份: {best_month[0]}（盈利{best_month[1]['profit']:+.0f}元）\n")
+            self.log_output(f"\n")
+
+            # ====== 下期预测 ======
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"下期投注建议\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            all_numbers = df['number'].values[-TRAIN_WINDOW:]
+            next_top15 = predictor.predict(all_numbers)
+
+            self.log_output(f"【下期TOP15预测】\n")
+            self.log_output(f"  {next_top15}\n\n")
+
+            # 检查最后一期状态
+            last_result = results[-1]['result'] if results else 'LOSS'
+            if cfg['pause'] and last_result == 'WIN':
+                self.log_output(f"【投注建议】\n")
+                self.log_output(f"  ⏸️  暂停投注期\n")
+                self.log_output(f"  原因: 上一期命中, 根据'命中停1期'规则暂停\n")
+                self.log_output(f"  恢复: 下下期从1倍开始\n\n")
+            else:
+                # 计算下期倍数
+                if fib_idx <= cfg['delay'] - 1:
+                    next_mul = 1
+                else:
+                    fi = fib_idx - cfg['delay'] + 1
+                    next_mul = min(FIB[min(fi, len(FIB) - 1)], cfg['max_mul'])
+                next_bet = BASE_BET * next_mul
+
+                self.log_output(f"【投注建议】\n")
+                self.log_output(f"  当前Fibonacci索引: {fib_idx}\n")
+                if fib_idx <= cfg['delay'] - 1:
+                    self.log_output(f"  状态: 延迟期内（第{fib_idx+1}/{cfg['delay']}期连败）→ 平注1倍\n")
+                else:
+                    self.log_output(f"  状态: 已超过延迟期 → Fibonacci第{fib_idx-cfg['delay']+1}级\n")
+                self.log_output(f"  建议倍数: {next_mul}倍\n")
+                self.log_output(f"  投注金额: {next_bet:.0f}元\n")
+                self.log_output(f"  如果命中: +{WIN_REWARD*next_mul - next_bet:.0f}元{'（命中后下期暂停）' if cfg['pause'] else ''}\n")
+                self.log_output(f"  如果未中: -{next_bet:.0f}元\n\n")
+
+            # 风险提示
+            self.log_output(f"【风险控制】\n")
+            self.log_output(f"  最大倍数: {cfg['max_mul']}倍 (最高投注{BASE_BET*cfg['max_mul']}元)\n")
+            self.log_output(f"  建议备用资金: {max_streak_loss*1.2:.0f}元\n")
+            self.log_output(f"  400期验证风险比: {risk_ratio:.2f} (利润/回撤)\n\n")
+
+            self.log_output(f"✅ 延迟Fibonacci优化投注策略分析完成！\n")
+            self.log_output(f"💡 vs当前v6.1: 风险比提升{risk_ratio/v61_rr:.1f}倍, 回撤降低{(v61_dd-max_drawdown)/v61_dd*100:.0f}%\n")
+
+        except Exception as e:
+            error_msg = f"延迟Fib策略分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(traceback.format_exc())
+
+    def analyze_distilled_top20(self):
+        """蒸馏TOP20：最优智能TOP20预测结果 ∩ 生肖TOP9范围"""
+        threading.Thread(
+            target=self._run_distilled_top20_analysis,
+            daemon=True
+        ).start()
+
+    def _run_distilled_top20_analysis(self):
+        """执行蒸馏TOP20分析 - 对TOP20数字按生肖TOP9过滤，不补齐"""
+        try:
+            from datetime import datetime
+            from precise_top15_predictor import PreciseTop15Predictor
+            from zodiac_top9_predictor import ZodiacTop9Predictor, NUM_TO_ZODIAC_2026
+
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output(f"🔬 蒸馏TOP20 预测分析（TOP20 ∩ 生肖TOP9）\n")
+            self.log_output(f"{'='*70}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n")
+            self.log_output(f"蒸馏规则: 取最优智能TOP20预测数字，过滤掉生肖不在TOP9范围内的数字\n")
+            self.log_output(f"         剩余数字即为预测结果（少于20个不补齐）\n\n")
+
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期，无法进行可靠分析")
+                return
+
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n\n")
+
+            test_periods = min(400, len(df) - 50)
+            start_idx = len(df) - test_periods
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"执行回测分析（最近{test_periods}期）...\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 初始化两个预测器
+            num_predictor = PreciseTop15Predictor()
+            zodiac_predictor = ZodiacTop9Predictor()
+
+            TRAIN_WINDOW = 25
+            results = []
+
+            for i in range(start_idx, len(df)):
+                period_num = i - start_idx + 1
+
+                # TOP20数字预测
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
+                top20_nums = num_predictor.predict(train_data, k=20)
+                num_predictor.update_performance(top20_nums, df.iloc[i]['number'])
+
+                # 生肖TOP9预测（使用全量历史数据训练生肖模型）
+                hist_numbers = df.iloc[:i]['number'].values.tolist()
+                top9_zodiacs = zodiac_predictor.predict(hist_numbers, top_n=9)
+
+                # 蒸馏：只保留生肖在TOP9内的数字
+                distilled = [n for n in top20_nums if NUM_TO_ZODIAC_2026[n] in top9_zodiacs]
+
+                actual = df.iloc[i]['number']
+                date = df.iloc[i]['date']
+                hit = actual in distilled
+                count = len(distilled)
+
+                # 记录生肖预测器结果（供display使用）
+                actual_zodiac = NUM_TO_ZODIAC_2026[actual]
+                zodiac_hit = actual_zodiac in top9_zodiacs
+                zodiac_predictor.record_result(zodiac_hit)
+
+                results.append({
+                    'period': period_num,
+                    'date': date,
+                    'actual': actual,
+                    'top20_nums': top20_nums,
+                    'top9_zodiacs': top9_zodiacs,
+                    'distilled': distilled,
+                    'count': count,
+                    'hit': hit,
+                    'zodiac_hit': zodiac_hit,
+                })
+
+            # 统计
+            hits = sum(1 for r in results if r['hit'])
+            total = len(results)
+            hit_rate = hits / total if total > 0 else 0
+            avg_count = sum(r['count'] for r in results) / total if total > 0 else 0
+            min_count = min(r['count'] for r in results)
+            max_count = max(r['count'] for r in results)
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"最近{total}期预测详情（蒸馏TOP20）\n")
+            self.log_output(f"{'='*70}\n\n")
+            # 只展示最近400期
+            results = results[-400:] if len(results) > 400 else results
+            total = len(results)
+            self.log_output(f"时间范围: {results[0]['date']} 至 {results[-1]['date']}\n")
+            self.log_output(f"命中统计: {hits}/{total}期  命中率: {hit_rate*100:.1f}%\n")
+            self.log_output(f"蒸馏数量: 平均{avg_count:.1f}个/期  最少{min_count}个  最多{max_count}个\n\n")
+
+            self.log_output(f"{'期号':<7}{'日期':<12}{'开奖':<6}{'蒸馏数量':<8}{'命中':<6}{'蒸馏号码（≤20个）'}\n")
+            self.log_output(f"{'-'*110}\n")
+
+            for r in results:
+                hit_mark = '✓' if r['hit'] else '✗'
+                nums_str = ' '.join(str(n) for n in sorted(r['distilled'])) if r['distilled'] else '(空)'
+                self.log_output(
+                    f"{r['period']:<7}{r['date']:<12}{r['actual']:<6}{r['count']:<8}{hit_mark:<6}{nums_str}\n"
+                )
+
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output(f"汇总统计\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 分布统计
+            count_dist = {}
+            for r in results:
+                c = r['count']
+                count_dist[c] = count_dist.get(c, 0) + 1
+            self.log_output(f"【蒸馏数量分布】\n")
+            for c in sorted(count_dist.keys()):
+                self.log_output(f"  {c:>2}个数: {count_dist[c]:>4}期  ({count_dist[c]/total*100:.1f}%)\n")
+            self.log_output(f"\n")
+
+            # 按蒸馏数量分组的命中率
+            self.log_output(f"【按蒸馏数量的命中率】\n")
+            from collections import defaultdict, Counter
+            by_count = defaultdict(list)
+            for r in results:
+                by_count[r['count']].append(r['hit'])
+            for c in sorted(by_count.keys()):
+                grp = by_count[c]
+                hr = sum(grp) / len(grp) * 100
+                self.log_output(f"  {c:>2}个数: {sum(grp)}/{len(grp)}期  命中率 {hr:.1f}%\n")
+            self.log_output(f"\n")
+
+            # 连续统计
+            max_miss = cur_miss = 0
+            for r in results:
+                if not r['hit']:
+                    cur_miss += 1
+                    max_miss = max(max_miss, cur_miss)
+                else:
+                    cur_miss = 0
+
+            self.log_output(f"【风险指标】\n")
+            self.log_output(f"  最长连未命中: {max_miss}期\n")
+            self.log_output(f"  命中率 vs 随机基线({int(avg_count)}/49≈{avg_count/49*100:.1f}%): +{hit_rate*100 - avg_count/49*100:.1f}%\n\n")
+
+            # 下一期预测
+            lo_last = max(0, len(df) - TRAIN_WINDOW)
+            train_last = df.iloc[lo_last:]['number'].values
+            top20_next = num_predictor.predict(train_last, k=20)
+            hist_all = df['number'].values.tolist()
+            top9_next = zodiac_predictor.predict(hist_all, top_n=9)
+            distilled_next = [n for n in top20_next if NUM_TO_ZODIAC_2026[n] in top9_next]
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"下一期预测（蒸馏TOP20）\n")
+            self.log_output(f"{'='*70}\n\n")
+            self.log_output(f"  生肖TOP9: {' '.join(top9_next)}\n")
+            self.log_output(f"  原始TOP20: {' '.join(str(n) for n in top20_next)}\n")
+            self.log_output(f"  蒸馏结果: {' '.join(str(n) for n in sorted(distilled_next))} （共{len(distilled_next)}个数）\n\n")
+
+            self.log_output(f"✅ 蒸馏TOP20分析完成！\n")
+
+        except Exception as e:
+            error_msg = f"蒸馏TOP20分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(traceback.format_exc())
+
+    def analyze_optimal_smart_betting_top20(self):
+        """最优智能动态倍投策略 TOP20 版本 - 扩充到20个数"""
+        threading.Thread(
+            target=self._run_optimal_smart_analysis_top20,
+            daemon=True
+        ).start()
+
+    def _run_optimal_smart_analysis_top20(self):
+        """执行最优智能动态倍投策略分析（TOP20）"""
+        try:
+            from datetime import datetime
+            from precise_top15_predictor import PreciseTop15Predictor
+
+            # 马尔可夫动态倍投策略配置（与TOP15相同参数）
+            config = {
+                'name': '马尔可夫动态倍投策略 v6.1（TOP20+参数优化+max10）',
+                'lookback': 12,
+                'max_multiplier': 10,
+                'base_bet': 20,   # TOP20：20个数×1元
+                'win_reward': 47,
+                'pattern_len': 2,
+                'boost_factor': 2.5,
+                'reduce_factor': 0.4,
+                'high_thresh': 0.35,
+                'low_thresh': 0.25,
+                'min_samples': 1,
+            }
+
+            PREDICT_K = 20  # 预测号码数量（TOP20成本20元/倍）
+            NET_PER_UNIT = config['win_reward'] - PREDICT_K  # 27元净利/倍
+            RATIO = config['win_reward'] / PREDICT_K  # 2.35倍赔率
+
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output(f"🏆 最优智能倍投策略分析 v6.1（TOP{PREDICT_K}+马尔可夫参数优化+max10+暂停策略）\n")
+            self.log_output(f"{'='*70}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n")
+            self.log_output(f"策略版本: v6.1 TOP{PREDICT_K} + 马尔可夫动态倍投（参数优化+max=10，含命中1停1期）\n")
+            self.log_output(f"赔付规则: 买{PREDICT_K}个数，成本{PREDICT_K}元/倍，命中赔47元/倍，净利={NET_PER_UNIT}元/倍，赔率{RATIO:.2f}倍\n")
+            self.log_output(f"核心参数: Fibonacci底层 + 马尔可夫模式调整(boost={config['boost_factor']}, reduce={config['reduce_factor']}) | max=10 | 命中停1\n")
+            self.log_output(f"预测窗口: 最近25期滚动训练\n\n")
+
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期，无法进行可靠分析")
+                return
+
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n\n")
+
+            # 400期回测
+            test_periods = min(400, len(df) - 50)
+            start_idx = len(df) - test_periods
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"执行回测分析（最近{test_periods}期）...\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            # 初始化预测器
+            predictor = PreciseTop15Predictor()
+
+            # Fibonacci数列
+            fib_sequence = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+
+            # 马尔可夫动态倍投策略类
+            class SmartDynamicStrategy:
+                def __init__(self, cfg):
+                    self.cfg = cfg
+                    self.fib_index = 0
+                    self.recent_results = []
+                    self.total_bet = 0
+                    self.total_win = 0
+                    self.balance = 0
+                    self.min_balance = 0
+                    self.max_drawdown = 0
+                    self._streak_loss = 0.0
+                    self.max_streak_loss = 0.0
+                    self._pattern_stats = {}
+
+                def get_base_multiplier(self):
+                    if self.fib_index >= len(fib_sequence):
+                        return min(fib_sequence[-1], self.cfg['max_multiplier'])
+                    return min(fib_sequence[self.fib_index], self.cfg['max_multiplier'])
+
+                def get_markov_multiplier(self):
+                    base = self.get_base_multiplier()
+                    pl = self.cfg.get('pattern_len', 3)
+                    if len(self.recent_results) >= pl:
+                        pattern = tuple(self.recent_results[-pl:])
+                        stats = self._pattern_stats.get(pattern, [0, 0])
+                        if stats[1] >= self.cfg.get('min_samples', 2):
+                            pred_rate = stats[0] / stats[1]
+                            if pred_rate >= self.cfg.get('high_thresh', 0.40):
+                                mul = base * self.cfg.get('boost_factor', 2.5)
+                            elif pred_rate <= self.cfg.get('low_thresh', 0.20):
+                                mul = base * self.cfg.get('reduce_factor', 0.4)
+                            else:
+                                mul = base
+                        else:
+                            mul = base
+                    else:
+                        mul = base
+                    return min(max(1, round(mul)), self.cfg['max_multiplier'])
+
+                def get_recent_rate(self):
+                    if len(self.recent_results) == 0:
+                        return 0.33
+                    return sum(self.recent_results) / len(self.recent_results)
+
+                def process_period(self, hit):
+                    multiplier = self.get_markov_multiplier()
+                    bet = self.cfg['base_bet'] * multiplier
+                    self.total_bet += bet
+
+                    if hit:
+                        win = self.cfg['win_reward'] * multiplier
+                        self.total_win += win
+                        profit = win - bet
+                        self.balance += profit
+                        self.fib_index = 0
+                        self._streak_loss = 0.0
+                    else:
+                        profit = -bet
+                        self.balance += profit
+                        self.fib_index += 1
+                        self._streak_loss += bet
+                        if self._streak_loss > self.max_streak_loss:
+                            self.max_streak_loss = self._streak_loss
+
+                    if self.balance < self.min_balance:
+                        self.min_balance = self.balance
+                        self.max_drawdown = abs(self.min_balance)
+
+                    pl = self.cfg.get('pattern_len', 3)
+                    if len(self.recent_results) >= pl:
+                        pattern = tuple(self.recent_results[-pl:])
+                        if pattern not in self._pattern_stats:
+                            self._pattern_stats[pattern] = [0, 0]
+                        self._pattern_stats[pattern][1] += 1
+                        if hit:
+                            self._pattern_stats[pattern][0] += 1
+
+                    self.recent_results.append(1 if hit else 0)
+                    if len(self.recent_results) > self.cfg['lookback']:
+                        self.recent_results.pop(0)
+
+                    return {
+                        'multiplier': multiplier,
+                        'bet': bet,
+                        'profit': profit,
+                        'recent_rate': self.get_recent_rate()
+                    }
+
+            def simulate_with_pause(sequence, pause_length=1):
+                pause_strategy = SmartDynamicStrategy(config)
+                pause_history = []
+                pause_remaining = 0
+                pause_trigger_count = 0
+                paused_hit_count = 0
+                pause_periods = 0
+                consecutive_losses = 0
+                max_consecutive_losses = 0
+                hit_10x_count = 0
+                for entry in sequence:
+                    period = entry['period']
+                    date = entry['date']
+                    actual = entry['actual']
+                    predictions = entry['predictions']
+                    hit = entry['hit']
+                    pred_str = str(predictions[:5]) + "..."
+                    if pause_remaining > 0:
+                        pause_remaining -= 1
+                        pause_periods += 1
+                        if hit:
+                            paused_hit_count += 1
+                        pause_history.append({
+                            'period': period, 'date': date, 'actual': actual,
+                            'predictions': predictions, 'predictions_str': pred_str,
+                            'hit': hit, 'multiplier': 0, 'bet': 0, 'profit': 0,
+                            'cumulative_profit': pause_strategy.balance,
+                            'recent_rate': pause_strategy.get_recent_rate(),
+                            'hit_limit': False, 'fib_index': pause_strategy.fib_index,
+                            'result': 'SKIP', 'paused': True, 'pause_remaining': pause_remaining
+                        })
+                        continue
+                    betting_fib_index = pause_strategy.fib_index
+                    result = pause_strategy.process_period(hit)
+                    profit = result['profit']
+                    status = 'WIN' if hit else 'LOSS'
+                    hit_limit = result['multiplier'] >= config['max_multiplier']
+                    if hit:
+                        pause_remaining = pause_length
+                        pause_trigger_count += 1
+                        consecutive_losses = 0
+                    else:
+                        consecutive_losses += 1
+                        max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+                    if hit_limit:
+                        hit_10x_count += 1
+                    pause_history.append({
+                        'period': period, 'date': date, 'actual': actual,
+                        'predictions': predictions, 'predictions_str': pred_str,
+                        'hit': hit, 'multiplier': result['multiplier'], 'bet': result['bet'],
+                        'profit': profit, 'cumulative_profit': pause_strategy.balance,
+                        'recent_rate': result['recent_rate'], 'hit_limit': hit_limit,
+                        'fib_index': betting_fib_index, 'result': status,
+                        'paused': False, 'pause_remaining': pause_remaining
+                    })
+                total_periods = len(sequence)
+                total_cost = pause_strategy.total_bet
+                total_profit = pause_strategy.balance
+                total_reward = pause_strategy.total_win
+                bet_periods = total_periods - pause_periods
+                wins = sum(1 for h in pause_history if h['result'] == 'WIN')
+                losses = sum(1 for h in pause_history if h['result'] == 'LOSS')
+                roi_pause = (total_profit / total_cost * 100) if total_cost > 0 else 0
+                hit_rate_pause = wins / bet_periods if bet_periods > 0 else 0
+                return {
+                    'history': pause_history, 'total_periods': total_periods,
+                    'bet_periods': bet_periods, 'pause_periods': pause_periods,
+                    'paused_hit_count': paused_hit_count, 'pause_trigger_count': pause_trigger_count,
+                    'total_cost': total_cost, 'total_reward': total_reward, 'total_profit': total_profit,
+                    'roi': roi_pause, 'max_drawdown': pause_strategy.max_drawdown,
+                    'max_streak_loss': pause_strategy.max_streak_loss,
+                    'wins': wins, 'losses': losses, 'hit_rate': hit_rate_pause,
+                    'max_consecutive_losses': max_consecutive_losses, 'hit_10x_count': hit_10x_count
+                }, pause_strategy
+
+            # 初始化策略
+            strategy = SmartDynamicStrategy(config)
+            results = []
+            TRAIN_WINDOW = 25
+
+            for i in range(start_idx, len(df)):
+                period_num = i - start_idx + 1
+                lo = max(0, i - TRAIN_WINDOW)
+                train_data = df.iloc[lo:i]['number'].values
+                predictions = predictor.predict(train_data, k=PREDICT_K)
+                actual = df.iloc[i]['number']
+                date = df.iloc[i]['date']
+                hit = actual in predictions
+                predictor.update_performance(predictions, actual)
+                betting_fib_index = strategy.fib_index
+                result = strategy.process_period(hit)
+                hit_limit = result['multiplier'] >= 10
+
+                predictions_str = str(predictions[:5]) + "..."
+                results.append({
+                    'period': period_num, 'date': date, 'actual': actual,
+                    'predictions': predictions, 'predictions_str': predictions_str,
+                    'hit': hit, 'multiplier': result['multiplier'], 'bet': result['bet'],
+                    'profit': result['profit'], 'cumulative_profit': strategy.balance,
+                    'recent_rate': result['recent_rate'], 'hit_limit': hit_limit,
+                    'fib_index': betting_fib_index
+                })
+
+            # 统计结果
+            total_cost = strategy.total_bet
+            total_profit_val = strategy.balance
+            roi = (total_profit_val / total_cost * 100) if total_cost > 0 else 0
+            hits = sum(1 for r in results if r['hit'])
+            hit_rate = hits / len(results) if results else 0
+            pause_variant, pause_strategy = simulate_with_pause(results, pause_length=1)
+
+            max_consecutive_wins = max_consecutive_losses = current_wins = current_losses = 0
+            for r in results:
+                if r['hit']:
+                    current_wins += 1; current_losses = 0
+                    max_consecutive_wins = max(max_consecutive_wins, current_wins)
+                else:
+                    current_losses += 1; current_wins = 0
+                    max_consecutive_losses = max(max_consecutive_losses, current_losses)
+
+            # ── 输出最近400期预测详情 ──
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"最近{test_periods}期投注详情（TOP{PREDICT_K}）\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            recent_400 = results[-400:] if len(results) > 400 else results
+
+            hit_records_t20 = [r['hit'] for r in recent_400]
+            mk2_table_t20 = self._calculate_markov2_transition(hit_records_t20)
+            losing_streak_t20 = self._analyze_losing_streak_recovery(hit_records_t20)
+            winning_cont_t20 = self._calculate_winning_streak_continuation(hit_records_t20)
+
+            hits_400 = sum(1 for r in recent_400 if r['hit'])
+            total_profit_400 = sum(r['profit'] for r in recent_400)
+
+            self.log_output(f"展示期数：最近{len(recent_400)}期\n")
+            self.log_output(f"时间范围：{recent_400[0]['date']} 至 {recent_400[-1]['date']}\n")
+            self.log_output(f"期间统计：命中{hits_400}/{len(recent_400)}期，净盈利{total_profit_400:+.0f}元\n\n")
+
+            self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP20':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'12期率':<10}{'预测率':<10}{'触10x':<6}{'Fib':<4}\n")
+            self.log_output(f"{'-'*140}\n")
+
+            cumulative_in_range = 0
+            for r in recent_400:
+                cumulative_in_range += r['profit']
+                pos_0based = r['period'] - 1
+                pred_prob = self._predict_markov_hit_probability(
+                    hit_records_t20, pos_0based, mk2_table_t20, losing_streak_t20, winning_cont_t20)
+                hit_mark = '✓' if r['hit'] else '✗'
+                limit_mark = '是' if r['hit_limit'] else ''
+                self.log_output(
+                    f"{r['period']:<8}{r['date']:<12}{r['actual']:<6}{r['predictions_str']:<25}"
+                    f"{r['multiplier']:<8.2f}{r['bet']:<8.0f}{hit_mark:<6}"
+                    f"{r['profit']:+10.0f}  {cumulative_in_range:+12.0f}  {r['recent_rate']*100:<8.1f}%  "
+                    f"{pred_prob*100:<8.1f}%  {limit_mark:<6}{r['fib_index']:<4}\n"
+                )
+
+            self.log_output(f"\n💡 说明：预测TOP20=显示前5个 | 倍数=投注倍数 | 12期率=最近12期命中率 | 预测率=马尔可夫综合预测命中概率 | 触10x=是否触及10倍上限 | Fib=Fibonacci索引 | 累计=展示区间内累计盈亏\n\n")
+
+            # ── 命中1停1期版本详情 ──
+            pause_history = pause_variant['history']
+            if pause_history:
+                self.log_output(f"{'='*70}\n")
+                self.log_output(f"最近{test_periods}期详情（命中1停1期 + 暂停状态）\n")
+                self.log_output(f"{'='*70}\n")
+                self.log_output(f"展示期数：最近{len(pause_history)}期（含暂停期）\n")
+                self.log_output(f"暂停期间命中{pause_variant['paused_hit_count']}次，触发{pause_variant['pause_trigger_count']}次\n\n")
+                self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP20':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'暂停':<6}{'余停':<6}{'Fib':<4}\n")
+                self.log_output(f"{'-'*124}\n")
+                cumulative_pause = 0
+                for entry in pause_history:
+                    pred_str = entry.get('predictions_str') or str(entry.get('predictions', [])[:5]) + "..."
+                    profit = entry.get('profit', 0)
+                    cumulative_pause += profit
+                    hit_mark = '✓' if entry.get('hit') else '✗'
+                    paused_flag = "暂停" if entry.get('paused') else ""
+                    self.log_output(
+                        f"{entry.get('period',0):<8}{entry.get('date',''):<12}{entry.get('actual','N/A'):<6}{pred_str:<25}"
+                        f"{entry.get('multiplier',0):<8.2f}{entry.get('bet',0):<8.0f}{hit_mark:<6}"
+                        f"{profit:+10.0f}  {cumulative_pause:+12.0f}  {paused_flag:<6}{entry.get('pause_remaining',0):<6}{entry.get('fib_index',0):<4}\n"
+                    )
+                self.log_output("\n")
+
+            # ── 汇总统计 ──
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"核心统计数据（命中1停1期暂停策略）\n")
+            self.log_output(f"{'='*70}\n\n")
+
+            self.log_output(f"【策略对比】\n")
+            self.log_output(f"  策略名称        投注期数  命中率   ROI      净利润    最大回撤\n")
+            self.log_output(f"  {'-'*66}\n")
+            self.log_output(f"  基础策略        {len(results):>4}期   {hit_rate*100:>5.1f}%  {roi:>6.2f}%  {total_profit_val:>+7.0f}元  {strategy.max_drawdown:>6.0f}元\n")
+            self.log_output(f"  暂停策略        {pause_variant['bet_periods']:>4}期   {pause_variant['hit_rate']*100:>5.1f}%  {pause_variant['roi']:>6.2f}%  {pause_variant['total_profit']:>+7.0f}元  {pause_variant['max_drawdown']:>6.0f}元\n")
+            self.log_output(f"\n")
+
+            self.log_output(f"【最优策略表现（暂停策略）】\n")
+            self.log_output(f"  总期数: {pause_variant['total_periods']}期\n")
+            self.log_output(f"  投注期数: {pause_variant['bet_periods']}期 ({pause_variant['bet_periods']/pause_variant['total_periods']*100:.1f}%)\n")
+            self.log_output(f"  暂停期数: {pause_variant['pause_periods']}期\n")
+            self.log_output(f"  命中次数: {pause_variant['wins']}/{pause_variant['bet_periods']}\n")
+            self.log_output(f"  命中率: {pause_variant['hit_rate']*100:.2f}%\n")
+            self.log_output(f"  总投注: {pause_variant['total_cost']:.0f}元\n")
+            self.log_output(f"  总收益: {pause_variant['total_reward']:.0f}元\n")
+            self.log_output(f"  净利润: {pause_variant['total_profit']:+.0f}元\n")
+            self.log_output(f"  ROI: {pause_variant['roi']:+.2f}%\n")
+            self.log_output(f"  最大回撤: {pause_variant['max_drawdown']:.0f}元\n")
+            self.log_output(f"  连续不中总额: {pause_variant['max_streak_loss']:.0f}元\n")
+            self.log_output(f"  最长连亏: {pause_variant['max_consecutive_losses']}期\n\n")
+
+            # 下一期投注建议
+            current_rate = pause_strategy.get_recent_rate()
+            next_multiplier = pause_strategy.get_markov_multiplier()
+            next_bet = config['base_bet'] * next_multiplier
+            self.log_output(f"【下一期投注建议（TOP{PREDICT_K}）】\n")
+            self.log_output(f"  建议倍数: {next_multiplier}倍\n")
+            self.log_output(f"  投注金额: {next_bet:.0f}元（{PREDICT_K}个数×{next_multiplier}倍）\n")
+            self.log_output(f"  如果命中: +{config['win_reward']*next_multiplier - next_bet:.0f}元（命中后下期暂停）\n")
+            self.log_output(f"  如果未中: -{next_bet:.0f}元\n")
+            self.log_output(f"  最近{config['lookback']}期命中率: {current_rate:.2%}\n\n")
+
+            self.log_output(f"【风险控制】\n")
+            self.log_output(f"  基础投注: {config['base_bet']}元（{PREDICT_K}个数×1元）\n")
+            self.log_output(f"  最大倍数: {config['max_multiplier']}倍 (最高投注{config['base_bet']*config['max_multiplier']}元)\n")
+            self.log_output(f"  建议备用资金: {pause_variant['max_streak_loss']*1.2:.0f}元（连续不中总额×1.2安全系数）\n\n")
+
+            self.log_output(f"✅ 最优智能TOP20动态倍投策略分析完成！\n")
+
+        except Exception as e:
+            error_msg = f"最优智能TOP20投注分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(traceback.format_exc())
+
     def analyze_optimal_smart_betting(self):
         """最优智能动态倍投策略 - 经过720组参数优化验证"""
         # 直接在新线程中执行分析，无需选择档位
@@ -4150,21 +6650,21 @@ class LuckyNumberGUI:
             self.log_output(f"{'='*70}\n\n")
             
             # 获取最近400期数据
-            recent_300 = results[-400:] if len(results) > 400 else results
+            recent_400 = results[-400:] if len(results) > 400 else results
 
             # 预计算马尔可夫所需数据（用于详情表预测率列）
-            hit_records_t15   = [r['hit'] for r in results]
+            hit_records_t15   = [r['hit'] for r in recent_400 ]
             mk2_table_t15     = self._calculate_markov2_transition(hit_records_t15)
             losing_streak_t15 = self._analyze_losing_streak_recovery(hit_records_t15)
             winning_cont_t15  = self._calculate_winning_streak_continuation(hit_records_t15)
 
             # 表格标题和期间统计
-            hits_300 = sum(1 for r in recent_300 if r['hit'])
-            total_profit_300 = sum(r['profit'] for r in recent_300)
+            hits_400 = sum(1 for r in recent_400 if r['hit'])
+            total_profit_400 = sum(r['profit'] for r in recent_400)
             
-            self.log_output(f"展示期数：最近{len(recent_300)}期\n")
-            self.log_output(f"时间范围：{recent_300[0]['date']} 至 {recent_300[-1]['date']}\n")
-            self.log_output(f"期间统计：命中{hits_300}/{len(recent_300)}期，净盈利{total_profit_300:+.0f}元\n\n")
+            self.log_output(f"展示期数：最近{len(recent_400)}期\n")
+            self.log_output(f"时间范围：{recent_400[0]['date']} 至 {recent_400[-1]['date']}\n")
+            self.log_output(f"期间统计：命中{hits_400}/{len(recent_400)}期，净盈利{total_profit_400:+.0f}元\n\n")
             
             # 表格标题（增加累计列宽度）
             self.log_output(f"{'期号':<8}{'日期':<12}{'开奖':<6}{'预测TOP15':<25}{'倍数':<8}{'投注':<8}{'命中':<6}{'盈亏':<10}{'累计':<12}{'12期率':<10}{'预测率':<10}{'触10x':<6}{'Fib':<4}\n")
@@ -4172,7 +6672,7 @@ class LuckyNumberGUI:
             
             # 输出每期详情，累计值从0开始重新计算
             cumulative_in_range = 0
-            for r in recent_300:
+            for r in recent_400:
                 period = r['period']
                 date = r['date']
                 actual = r['actual']
@@ -4468,7 +6968,7 @@ class LuckyNumberGUI:
             
             # 月度表现统计（基于暂停策略）
             self.log_output(f"【月度表现】\n")
-            from collections import defaultdict
+            from collections import defaultdict, Counter
             import re
             
             monthly_stats = defaultdict(lambda: {'hits': 0, 'total': 0, 'profit': 0, 'start_balance': None})
@@ -6860,6 +9360,180 @@ class LuckyNumberGUI:
             import traceback
             self.log_output(f"\n{traceback.format_exc()}\n")
     
+    def analyze_zodiac_top10(self):
+        """生肖TOP10预测 - 最近400期详情"""
+        try:
+            from datetime import datetime
+            from zodiac_top9_predictor import NUM_TO_ZODIAC_2026, ZODIAC_NUMS_2026
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🎯 生肖TOP10 预测分析\n")
+            self.log_output(f"{'='*80}\n")
+
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.log_output(f"分析时间: {current_time}\n\n")
+
+            # 读取数据
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            numbers = df['number'].values.tolist()
+
+            if len(df) < 50:
+                messagebox.showwarning("警告", "数据不足50期")
+                return
+
+            self.log_output(f"✅ 数据加载: {len(df)}期\n")
+            self.log_output(f"最新: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号\n\n")
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"策略说明 (TOP10 多维度组合)\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"• 多维度评分: 冷号15×0.20 + 冷号30×0.05 + MK150×0.50 + 间隔×0.10 + 热号×0.15\n")
+            self.log_output(f"• 反miss-L1: 连续miss≥2时, blend 25%热号\n")
+            self.log_output(f"• 反miss-L2: 连续miss≥3时, 扩展到TOP11\n")
+            self.log_output(f"• 每期投入: 40~44元 (10~11生肖×4元)\n")
+            self.log_output(f"• 命中奖励: 46元\n")
+            self.log_output(f"• 随机基线: 83.3% (TOP10/12)\n\n")
+
+            # 400期回测
+            test_periods = min(400, len(df) - 20)
+            start_idx = len(df) - test_periods
+
+            predictor = ZodiacTop10Predictor()
+            hit_records = []
+            total_cost = 0
+            total_reward = 0
+            mode_records = []
+
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"最近{test_periods}期预测详情\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"{'期号':>6} {'日期':>12} {'实际':>4} {'TOP10预测':>60} {'结果':>6} {'模式':>14}\n")
+            self.log_output(f"{'-'*110}\n")
+
+            for i in range(start_idx, len(df)):
+                hist_numbers = numbers[:i]
+                actual_num = numbers[i]
+                actual_zodiac = NUM_TO_ZODIAC_2026[actual_num]
+
+                predicted, mode, scores = predictor.predict_with_details(hist_numbers, top_n=10)
+
+                hit = actual_zodiac in predicted
+                hit_records.append(hit)
+                predictor.record_result(hit)
+
+                bet_size = len(predicted)
+                total_cost += bet_size * 4
+                if hit:
+                    total_reward += 46
+
+                if "L2" in mode:
+                    mode_short = "扩展TOP11"
+                elif "L1" in mode:
+                    mode_short = "热号blend"
+                else:
+                    mode_short = "正常"
+                mode_records.append(mode_short)
+
+                period_idx = i - start_idx + 1
+                mark = "✅" if hit else "❌"
+                pred_str = ','.join(predicted)
+                date_str = str(df.iloc[i]['date'])
+
+                self.log_output(f"{period_idx:>6} {date_str:>12} {actual_zodiac:>4} {pred_str:>60} {mark:>6} {mode_short:>14}\n")
+
+            # 统计
+            hits = sum(hit_records)
+            hit_rate = hits / test_periods * 100
+            profit = total_reward - total_cost
+            roi = profit / total_cost * 100
+
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"回测结果汇总\n")
+            self.log_output(f"{'='*80}\n")
+            self.log_output(f"命中: {hits}/{test_periods} = {hit_rate:.1f}%\n")
+            self.log_output(f"随机基线: 83.3%, 提升: {hit_rate-83.3:+.1f}%\n")
+            self.log_output(f"总投入: {total_cost}元, 总回报: {total_reward}元\n")
+            self.log_output(f"净利润: {profit:+d}元, ROI: {roi:+.1f}%\n\n")
+
+            # 分段统计
+            seg_size = 50
+            n_segs = test_periods // seg_size
+            self.log_output(f"分段统计(每{seg_size}期):\n")
+            for s in range(n_segs):
+                seg_h = sum(hit_records[s*seg_size:(s+1)*seg_size])
+                seg_rate = seg_h / seg_size * 100
+                bar = '█' * int(seg_rate / 5) + '░' * (20 - int(seg_rate / 5))
+                self.log_output(f"  {s*seg_size+1:>3}-{(s+1)*seg_size:>3}: {seg_h}/{seg_size} = {seg_rate:.0f}% {bar}\n")
+
+            # 最大连续miss
+            max_miss = 0
+            cur_miss = 0
+            for h in hit_records:
+                if not h:
+                    cur_miss += 1
+                    max_miss = max(max_miss, cur_miss)
+                else:
+                    cur_miss = 0
+            self.log_output(f"\n最大连续miss: {max_miss}期\n")
+
+            streaks = []
+            c = 0
+            for h in hit_records:
+                if not h:
+                    c += 1
+                else:
+                    if c > 0:
+                        streaks.append(c)
+                    c = 0
+            if c > 0:
+                streaks.append(c)
+            ge2 = sum(1 for s in streaks if s >= 2)
+            ge3 = sum(1 for s in streaks if s >= 3)
+            self.log_output(f"≥2期连续miss: {ge2}次\n")
+            self.log_output(f"≥3期连续miss: {ge3}次\n")
+
+            # 模式统计
+            from collections import Counter as Ctr
+            self.log_output(f"\n模式统计:\n")
+            for mode, count in Ctr(mode_records).most_common():
+                mode_hits = sum(1 for h, m in zip(hit_records, mode_records) if m == mode and h)
+                self.log_output(f"  {mode}: {count}期, 命中{mode_hits}/{count}={mode_hits/count*100:.1f}%\n")
+
+            # 下一期预测
+            self.log_output(f"\n{'='*80}\n")
+            self.log_output(f"🔮 下一期预测\n")
+            self.log_output(f"{'='*80}\n")
+
+            predictor_fresh = ZodiacTop10Predictor()
+            predicted, mode, scores = predictor_fresh.predict_with_details(numbers, top_n=10)
+
+            self.log_output(f"预测模式: {mode}\n\n")
+            medals = ['🥇', '🥈', '🥉', '🏅', '🎖️', '📌', '📌', '📌', '📌', '📌', '📌']
+            for idx, z in enumerate(predicted):
+                nums = ZODIAC_NUMS_2026[z]
+                medal = medals[idx] if idx < len(medals) else '📌'
+                score_info = scores.get(z, {})
+                base_s = score_info.get('base', 0)
+                hot_s = score_info.get('hot', 0)
+                self.log_output(f"{medal} {z} → {nums} (基础:{base_s:.3f} 热号:{hot_s:.3f})\n")
+
+            excluded = [z for z in ['马','蛇','龙','兔','虎','牛','鼠','猪','狗','鸡','猴','羊'] if z not in predicted]
+            self.log_output(f"\n❌ 排除的生肖: {','.join(excluded)}\n")
+
+            all_nums = sorted([n for z in predicted for n in ZODIAC_NUMS_2026[z]])
+            excluded_nums = sorted([n for n in range(1, 50) if n not in all_nums])
+            self.log_output(f"\n覆盖号码({len(all_nums)}个): {all_nums}\n")
+            self.log_output(f"排除号码({len(excluded_nums)}个): {excluded_nums}\n")
+            bet_cost = len(predicted) * 4
+            self.log_output(f"投注成本: {bet_cost}元/倍 ({len(predicted)}生肖×4元)\n")
+            self.log_output(f"命中奖励: 46元/倍, 净利润: {46-bet_cost:+d}元/倍\n")
+
+        except Exception as e:
+            self.log_output(f"\n❌ 错误: {str(e)}\n")
+            import traceback
+            self.log_output(f"\n{traceback.format_exc()}\n")
+    
     def analyze_distill_confidence(self):
         """蒸馏TOP4 方案E: 置信度分层 (53.3%命中率)"""
         try:
@@ -7389,6 +10063,253 @@ class LuckyNumberGUI:
             self.log_output(f"\n❌ 错误: {str(e)}\n")
             import traceback
             self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_best_distilled_top15(self):
+        """最佳蒸馏TOP15: 反模式+PreciseTop15 (36.25%命中, 最大连败9期)"""
+        def run():
+            try:
+                from datetime import datetime
+                from top15_predictor import Top15Predictor
+
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"⭐ 最佳蒸馏TOP15 - 反模式+PreciseTop15 (固定15颗)\n")
+                self.log_output(f"{'='*80}\n")
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.log_output(f"分析时间: {current_time}\n\n")
+
+                file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+                df = pd.read_csv(file_path, encoding='utf-8-sig')
+                numbers = df['number'].values.tolist()
+
+                if len(df) < 50:
+                    messagebox.showwarning("警告", "数据不足50期")
+                    return
+
+                self.log_output(f"✅ 数据加载: {len(df)}期\n")
+                self.log_output(f"最新: {df.iloc[-1]['date']} - {df.iloc[-1]['number']}号\n\n")
+
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"策略说明\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"• 基底: PreciseTop15Predictor → 15个号码预测\n")
+                self.log_output(f"• 反模式: 分析最近10期miss的区间分布，找到2个最大盲区\n")
+                self.log_output(f"• 替换: 用盲区号码替换末位4个预测\n")
+                self.log_output(f"• 固定15颗, 成本15元/倍, 命中赔47元/倍\n")
+                self.log_output(f"• 400期回测: 36.25%命中率, 最大连败9期\n\n")
+
+                # 400期回测
+                test_periods = min(400, len(df) - 30)
+                start_idx = len(df) - test_periods
+                predictor_d = DistilledTop15Predictor()
+                predictor_b = Top15Predictor()
+
+                hit_d_list = []
+                hit_b_list = []
+                streak_d = 0
+                max_streak_d = 0
+                streak_b = 0
+                max_streak_b = 0
+
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"最近{test_periods}期命中详情日志\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"{'期号':>5} {'日期':>12} {'实际':>4} {'蒸馏':>4} {'基准':>4} {'蒸馏连败':>8} {'基准连败':>8} {'蒸馏累计':>8} {'基准累计':>8}\n")
+                self.log_output(f"{'-'*80}\n")
+
+                for i in range(start_idx, len(df)):
+                    hist = numbers[:i]
+                    actual = numbers[i]
+
+                    pred_d = predictor_d.predict(hist)
+                    pred_b = predictor_b.predict(hist)
+
+                    hit_d = actual in pred_d
+                    hit_b = actual in pred_b
+
+                    hit_d_list.append(hit_d)
+                    hit_b_list.append(hit_b)
+
+                    predictor_d.update(pred_d, actual)
+
+                    if hit_d:
+                        streak_d = 0
+                    else:
+                        streak_d += 1
+                        max_streak_d = max(max_streak_d, streak_d)
+
+                    if hit_b:
+                        streak_b = 0
+                    else:
+                        streak_b += 1
+                        max_streak_b = max(max_streak_b, streak_b)
+
+                    period_idx = i - start_idx + 1
+                    date_str = str(df.iloc[i]['date'])
+                    mark_d = "✅" if hit_d else "❌"
+                    mark_b = "✅" if hit_b else "❌"
+                    cum_d = sum(hit_d_list)
+                    cum_b = sum(hit_b_list)
+
+                    self.log_output(f"{period_idx:>5} {date_str:>12} {actual:>4} {mark_d:>4} {mark_b:>4} {streak_d:>8} {streak_b:>8} {cum_d:>8} {cum_b:>8}\n")
+
+                # 统计汇总
+                hits_d = sum(hit_d_list)
+                hits_b = sum(hit_b_list)
+                rate_d = hits_d / test_periods * 100
+                rate_b = hits_b / test_periods * 100
+
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"总体统计对比\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"{'指标':>20} {'蒸馏TOP15':>12} {'基准TOP15':>12} {'差异':>12}\n")
+                self.log_output(f"{'-'*60}\n")
+                self.log_output(f"{'命中次数':>20} {hits_d:>12} {hits_b:>12} {hits_d - hits_b:>+12}\n")
+                self.log_output(f"{'命中率':>20} {rate_d:>11.2f}% {rate_b:>11.2f}% {rate_d - rate_b:>+11.2f}%\n")
+                self.log_output(f"{'最大连败':>20} {max_streak_d:>12} {max_streak_b:>12} {max_streak_b - max_streak_d:>+12}\n")
+
+                # 分段统计
+                seg_size = 50
+                n_segs = test_periods // seg_size
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"分段命中率对比 (每{seg_size}期)\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"{'区间':>24} {'蒸馏':>8} {'基准':>8} {'差异':>8}\n")
+                self.log_output(f"{'-'*52}\n")
+                for s in range(n_segs):
+                    seg_d = sum(hit_d_list[s*seg_size:(s+1)*seg_size])
+                    seg_b = sum(hit_b_list[s*seg_size:(s+1)*seg_size])
+                    sd = seg_d/seg_size*100
+                    sb = seg_b/seg_size*100
+                    s_start = s * seg_size + 1
+                    s_end = (s+1) * seg_size
+                    d_start = str(df.iloc[start_idx + s*seg_size]['date'])
+                    d_end = str(df.iloc[start_idx + (s+1)*seg_size - 1]['date'])
+                    self.log_output(f"{s_start:>5}-{s_end:>3}期 ({d_start}~{d_end}) {sd:>6.0f}% {sb:>6.0f}% {sd-sb:>+6.0f}%\n")
+
+                # 连续不中分析
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"连续不中分析\n")
+                self.log_output(f"{'='*80}\n")
+
+                # 蒸馏模型连败分布
+                streaks_d = []
+                c = 0
+                for h in hit_d_list:
+                    if not h:
+                        c += 1
+                    else:
+                        if c > 0:
+                            streaks_d.append(c)
+                        c = 0
+                if c > 0:
+                    streaks_d.append(c)
+
+                streaks_b = []
+                c = 0
+                for h in hit_b_list:
+                    if not h:
+                        c += 1
+                    else:
+                        if c > 0:
+                            streaks_b.append(c)
+                        c = 0
+                if c > 0:
+                    streaks_b.append(c)
+
+                from collections import Counter as Ctr
+                dist_d = Ctr(streaks_d)
+                dist_b = Ctr(streaks_b)
+                all_lens = sorted(set(list(dist_d.keys()) + list(dist_b.keys())))
+
+                self.log_output(f"{'长度':>8} {'蒸馏':>8} {'基准':>8}\n")
+                self.log_output(f"{'-'*28}\n")
+                for l in all_lens:
+                    self.log_output(f"{l:>6}期 {dist_d.get(l,0):>6}次 {dist_b.get(l,0):>6}次\n")
+
+                ge5_d = sum(1 for s in streaks_d if s >= 5)
+                ge5_b = sum(1 for s in streaks_b if s >= 5)
+                self.log_output(f"\n≥5期连败: 蒸馏{ge5_d}次, 基准{ge5_b}次\n")
+
+                # 策略差异分析
+                both_hit = sum(1 for d, b in zip(hit_d_list, hit_b_list) if d and b)
+                only_d = sum(1 for d, b in zip(hit_d_list, hit_b_list) if d and not b)
+                only_b = sum(1 for d, b in zip(hit_d_list, hit_b_list) if not d and b)
+                both_miss = sum(1 for d, b in zip(hit_d_list, hit_b_list) if not d and not b)
+
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"策略差异分析\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"  两者都命中: {both_hit}次\n")
+                self.log_output(f"  仅蒸馏命中: {only_d}次 ⭐\n")
+                self.log_output(f"  仅基准命中: {only_b}次\n")
+                self.log_output(f"  两者都未中: {both_miss}次\n")
+
+                # 重点关注：≥5期连败段
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"重点关注：蒸馏模型 ≥5期连败段\n")
+                self.log_output(f"{'='*80}\n")
+                c = 0
+                seg_start = 0
+                seg_count = 0
+                for idx, h in enumerate(hit_d_list):
+                    if not h:
+                        if c == 0:
+                            seg_start = idx
+                        c += 1
+                    else:
+                        if c >= 5:
+                            seg_count += 1
+                            s_i = start_idx + seg_start
+                            e_i = start_idx + seg_start + c - 1
+                            actuals = [str(numbers[start_idx + seg_start + j]) for j in range(c)]
+                            self.log_output(f"\n--- 第{seg_count}段: 连续{c}期不中 (第{seg_start+1}-{seg_start+c}期, {df.iloc[s_i]['date']}~{df.iloc[e_i]['date']}) ---\n")
+                            self.log_output(f"  实际号码: {', '.join(actuals)}\n")
+                        c = 0
+                if c >= 5:
+                    seg_count += 1
+                    s_i = start_idx + seg_start
+                    e_i = start_idx + seg_start + c - 1
+                    actuals = [str(numbers[start_idx + seg_start + j]) for j in range(c)]
+                    self.log_output(f"\n--- 第{seg_count}段: 连续{c}期不中 (第{seg_start+1}-{seg_start+c}期, {df.iloc[s_i]['date']}~{df.iloc[e_i]['date']}) ---\n")
+                    self.log_output(f"  实际号码: {', '.join(actuals)}\n")
+
+                # 下一期预测
+                self.log_output(f"\n{'='*80}\n")
+                self.log_output(f"🔮 下一期最佳蒸馏TOP15预测\n")
+                self.log_output(f"{'='*80}\n")
+
+                predictor_next = DistilledTop15Predictor()
+                # 用全部历史数据做预测前先warm up
+                warmup_start = max(0, len(numbers) - 20)
+                for w in range(warmup_start, len(numbers)):
+                    hist_w = numbers[:w]
+                    if len(hist_w) >= 30:
+                        p_w = predictor_next.predict(hist_w)
+                        predictor_next.update(p_w, numbers[w])
+
+                next_pred = predictor_next.predict(numbers)
+                self.log_output(f"\n┌─────────────────────────────────────────────────┐\n")
+                self.log_output(f"│      ⭐ 最佳蒸馏TOP15预测 (固定15颗)            │\n")
+                self.log_output(f"├─────────────────────────────────────────────────┤\n")
+                for i, num in enumerate(next_pred, 1):
+                    zodiac = NUM_TO_ZODIAC_2026.get(num, '?')
+                    if i <= 5:
+                        marker = "⭐"
+                    elif i <= 10:
+                        marker = "✓ "
+                    else:
+                        marker = "○ "
+                    self.log_output(f"│ {marker} {i:>2}. {num:>2}号  {zodiac}                                │\n")
+                self.log_output(f"└─────────────────────────────────────────────────┘\n")
+                self.log_output(f"\n投注: 15元/倍, 命中赔47元/倍, 净利=32元/倍\n")
+                self.log_output(f"回测验证: 36.25%命中率, 最大连败{max_streak_d}期\n")
+
+            except Exception as e:
+                self.log_output(f"\n❌ 错误: {str(e)}\n")
+                import traceback
+                self.log_output(f"\n{traceback.format_exc()}\n")
+
+        threading.Thread(target=run, daemon=True).start()
 
     def analyze_zodiac_top4_betting(self):
         """生肖TOP4投注策略分析 - 使用推荐策略v2.0（重训练模型）"""
@@ -10581,3 +13502,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
