@@ -1046,8 +1046,45 @@ class LuckyNumberGUI:
             scores[d] = distance if want_spread else (5.0 - distance)
         return self._normalize_tail_score_map(scores)
 
+    def _classify_tail_trend_regime(self, tails):
+        """Classify the recent tail path into a small set of chart regimes."""
+        recent = tails[-8:]
+        if len(recent) < 4:
+            return 'neutral'
+
+        diffs = [recent[idx + 1] - recent[idx] for idx in range(len(recent) - 1)]
+        pos_moves = sum(diff > 0 for diff in diffs)
+        neg_moves = sum(diff < 0 for diff in diffs)
+        avg_swing = float(np.mean([abs(diff) for diff in diffs])) if diffs else 0.0
+        unique_count = len(set(recent))
+        low_count = sum(tail < 5 for tail in recent)
+        high_count = len(recent) - low_count
+
+        if pos_moves >= len(diffs) - 1 and avg_swing <= 2.5:
+            return 'uptrend'
+        if neg_moves >= len(diffs) - 1 and avg_swing <= 2.5:
+            return 'downtrend'
+        if unique_count <= 4:
+            return 'cluster'
+        if abs(high_count - low_count) >= 4:
+            return 'row_bias'
+        if avg_swing >= 4.0:
+            return 'volatile'
+        return 'oscillate'
+
+    def _estimate_tail_prediction_confidence(self, sorted_scores):
+        """Estimate how clear the current chart signal is from the score gaps."""
+        if len(sorted_scores) < 5:
+            return 0.5
+
+        top_scores = [score for _, score in sorted_scores[:5]]
+        lead_gap = top_scores[0] - top_scores[2]
+        spread_gap = top_scores[0] - top_scores[4]
+        confidence = 0.7 * lead_gap + 0.3 * spread_gap
+        return float(max(0.0, min(1.0, confidence)))
+
     def _predict_stable_tail_group(self, numbers, predictor=None, top_n=3):
-        """Predict a 3-period hold group using pure tail-trend distribution rules."""
+        """Predict a 3-period hold group using regime-aware tail-trend rules."""
         tails = [number_to_tail(n) for n in numbers]
 
         step_scores = self._estimate_tail_three_step_probs(tails)
@@ -1058,18 +1095,30 @@ class LuckyNumberGUI:
         gap_scores = self._estimate_tail_gap_band_scores(tails)
         spread_scores = self._estimate_tail_spread_scores(tails)
 
+        regime = self._classify_tail_trend_regime(tails)
+        if regime in ('uptrend', 'downtrend'):
+            weights = {'step': 0.30, 'pair': 0.24, 'slope': 0.20, 'wave': 0.10, 'row': 0.06, 'gap': 0.04, 'spread': 0.06}
+        elif regime == 'cluster':
+            weights = {'step': 0.26, 'pair': 0.28, 'slope': 0.10, 'wave': 0.16, 'row': 0.08, 'gap': 0.06, 'spread': 0.06}
+        elif regime == 'row_bias':
+            weights = {'step': 0.26, 'pair': 0.24, 'slope': 0.14, 'wave': 0.10, 'row': 0.18, 'gap': 0.04, 'spread': 0.04}
+        elif regime == 'volatile':
+            weights = {'step': 0.24, 'pair': 0.30, 'slope': 0.12, 'wave': 0.10, 'row': 0.06, 'gap': 0.08, 'spread': 0.10}
+        else:
+            weights = {'step': 0.28, 'pair': 0.26, 'slope': 0.18, 'wave': 0.12, 'row': 0.08, 'gap': 0.04, 'spread': 0.04}
+
         recent_counter = Counter(tails[-5:]) if tails else Counter()
         trend_scores = {}
         for d in range(10):
             repeat_penalty = 0.08 * max(0, recent_counter.get(d, 0) - 1)
             trend_scores[d] = (
-                0.28 * step_scores.get(d, 0.0) +
-                0.26 * pair_scores.get(d, 0.0) +
-                0.18 * slope_scores.get(d, 0.0) +
-                0.12 * wave_scores.get(d, 0.0) +
-                0.08 * row_scores.get(d, 0.0) +
-                0.04 * gap_scores.get(d, 0.0) +
-                0.04 * spread_scores.get(d, 0.0) -
+                weights['step'] * step_scores.get(d, 0.0) +
+                weights['pair'] * pair_scores.get(d, 0.0) +
+                weights['slope'] * slope_scores.get(d, 0.0) +
+                weights['wave'] * wave_scores.get(d, 0.0) +
+                weights['row'] * row_scores.get(d, 0.0) +
+                weights['gap'] * gap_scores.get(d, 0.0) +
+                weights['spread'] * spread_scores.get(d, 0.0) -
                 repeat_penalty
             )
 
@@ -1077,22 +1126,68 @@ class LuckyNumberGUI:
         predicted = [d for d, _ in sorted_scores[:top_n]]
         pair_pick = [d for d, _ in sorted(pair_scores.items(), key=lambda item: (-item[1], item[0]))[:top_n]]
         wave_pick = [d for d, _ in sorted(wave_scores.items(), key=lambda item: (-item[1], item[0]))[:top_n]]
+        confidence = self._estimate_tail_prediction_confidence(sorted_scores)
 
         return {
             'predicted': predicted,
             'scores': dict(sorted_scores),
-            'mode': '\u7eaf\u8d70\u52bf',
+            'mode': 'trend',
             'rotation_pick': pair_pick,
             'consensus_pick': wave_pick,
             'three_step_probs': step_scores,
             'three_step_top5': sorted(step_scores.items(), key=lambda item: (-item[1], item[0]))[:5],
+            'regime': regime,
+            'confidence': confidence,
+        }
+
+    def _get_tail_strategy_profile(self, miss_streak):
+        """Choose the anti-miss state and holding window from the current miss streak."""
+        if miss_streak >= 4:
+            return {
+                'state': 'rescue',
+                'hold_periods': 1,
+                'reason': 'rescue mode: recalc every period after 4 misses',
+            }
+        if miss_streak >= 2:
+            return {
+                'state': 'defense',
+                'hold_periods': 3,
+                'reason': 'defense mode: watch after 2 misses',
+            }
+        return {
+            'state': 'trend',
+            'hold_periods': 3,
+            'reason': 'trend mode: hold for up to 3 periods',
+        }
+
+    def _summarize_tail_miss_streaks(self, hit_records):
+        """Summarize miss streak risk metrics for the backtest."""
+        streaks = []
+        current = 0
+        max_miss = 0
+        for hit in hit_records:
+            if hit:
+                if current > 0:
+                    streaks.append(current)
+                current = 0
+            else:
+                current += 1
+                max_miss = max(max_miss, current)
+        if current > 0:
+            streaks.append(current)
+
+        return {
+            'streaks': streaks,
+            'max_miss': max_miss,
+            'ge3': sum(1 for streak in streaks if streak >= 3),
+            'ge5': sum(1 for streak in streaks if streak >= 5),
         }
 
     def _backtest_tail_hold_strategy(self, df, test_periods=300, hold_periods=3, top_n=3):
-        """Backtest the tail strategy that keeps one prediction group for up to 3 periods."""
+        """Backtest the tail strategy with anti-miss state switching."""
         numbers = df['number'].tolist()
         if len(numbers) <= 50:
-            raise ValueError('尾数策略至少需要50期历史数据')
+            raise ValueError('????????50?????')
 
         test_periods = min(test_periods, len(numbers) - 50)
         start_idx = len(numbers) - test_periods
@@ -1102,15 +1197,17 @@ class LuckyNumberGUI:
         group_results = []
 
         current_group = None
-        current_mode = '正常'
+        current_mode = 'trend'
         current_group_id = 0
         current_hold_step = 0
+        current_hold_limit = hold_periods
         current_group_hits = []
-        current_open_reason = '初始化换组'
+        current_open_reason = 'init switch'
         current_bundle = None
+        current_profile = None
         group_start_period = None
         group_start_date = None
-        next_open_reason = '按最新走势换组'
+        next_open_reason = 'refresh by latest trend'
 
         for i in range(start_idx, len(numbers)):
             hist = numbers[:i]
@@ -1118,10 +1215,18 @@ class LuckyNumberGUI:
             actual_tail = number_to_tail(actual)
 
             if current_group is None:
+                miss_streak = 0
+                for hit in reversed(hit_records):
+                    if hit:
+                        break
+                    miss_streak += 1
+
+                current_profile = self._get_tail_strategy_profile(miss_streak)
                 current_group_id += 1
                 current_bundle = self._predict_stable_tail_group(hist, top_n=top_n)
                 current_group = list(current_bundle['predicted'])
-                current_mode = current_bundle['mode']
+                current_mode = current_profile['state']
+                current_hold_limit = current_profile['hold_periods']
                 current_hold_step = 0
                 current_group_hits = []
                 group_start_period = i - start_idx + 1
@@ -1136,13 +1241,17 @@ class LuckyNumberGUI:
             current_group_hits.append(hit)
 
             if hit:
-                status = '命中，本组结束'
-                close_reason = '命中换组'
-            elif current_hold_step >= hold_periods:
-                status = '3期未中，本组结束'
-                close_reason = '3期未中换组'
+                status = 'HIT-SWITCH'
+                close_reason = 'hit recalc'
+            elif current_hold_step >= current_hold_limit:
+                if current_hold_limit == 1:
+                    status = 'RESCUE-RECALC'
+                    close_reason = 'rescue recalc'
+                else:
+                    status = f'MISS{current_hold_limit}-SWITCH'
+                    close_reason = f'miss{current_hold_limit} recalc'
             else:
-                status = f'继续持有({current_hold_step}/{hold_periods})'
+                status = f'HOLD({current_hold_step}/{current_hold_limit})'
                 close_reason = ''
 
             all_results.append({
@@ -1155,12 +1264,12 @@ class LuckyNumberGUI:
                 'mode': current_mode,
                 'group_id': current_group_id,
                 'hold_step': current_hold_step,
-                'hold_periods': hold_periods,
+                'hold_periods': current_hold_limit,
                 'refresh_reason': open_reason,
                 'status': status,
             })
 
-            if hit or current_hold_step >= hold_periods:
+            if hit or current_hold_step >= current_hold_limit:
                 group_results.append({
                     'group_id': current_group_id,
                     'predicted': list(current_group),
@@ -1175,41 +1284,52 @@ class LuckyNumberGUI:
                     'open_reason': current_open_reason,
                     'close_reason': close_reason,
                 })
-                next_open_reason = '命中后重算' if hit else '3期未中重算'
+                next_open_reason = 'hit recalc' if hit else close_reason
                 current_group = None
                 current_hold_step = 0
                 current_group_hits = []
                 current_open_reason = next_open_reason
                 current_bundle = None
+                current_profile = None
 
-        if current_group is not None and current_bundle is not None:
+        if current_group is not None and current_bundle is not None and current_profile is not None:
             next_plan = {
                 'predicted': list(current_group),
                 'mode': current_mode,
-                'reason': f'当前继续持有第{current_group_id}组，下一期执行第{current_hold_step + 1}/{hold_periods}期',
+                'reason': f'continue group {current_group_id}, next period {current_hold_step + 1}/{current_hold_limit}',
                 'group_id': current_group_id,
                 'continue_current': True,
                 'next_hold_step': current_hold_step + 1,
-                'hold_periods': hold_periods,
+                'hold_periods': current_hold_limit,
                 'scores': dict(current_bundle['scores']),
                 'rotation_pick': list(current_bundle['rotation_pick']),
                 'consensus_pick': list(current_bundle['consensus_pick']),
                 'three_step_top5': list(current_bundle['three_step_top5']),
+                'regime': current_bundle.get('regime', 'neutral'),
+                'confidence': current_bundle.get('confidence', 0.5),
             }
         else:
+            miss_streak = 0
+            for hit in reversed(hit_records):
+                if hit:
+                    break
+                miss_streak += 1
+            next_profile = self._get_tail_strategy_profile(miss_streak)
             next_bundle = self._predict_stable_tail_group(numbers, top_n=top_n)
             next_plan = {
                 'predicted': list(next_bundle['predicted']),
-                'mode': next_bundle['mode'],
-                'reason': f'{next_open_reason}，按最新走势切换到新组',
+                'mode': next_profile['state'],
+                'reason': f"{next_profile['reason']}; switch to a new group by latest trend",
                 'group_id': current_group_id + 1,
                 'continue_current': False,
                 'next_hold_step': 1,
-                'hold_periods': hold_periods,
+                'hold_periods': next_profile['hold_periods'],
                 'scores': dict(next_bundle['scores']),
                 'rotation_pick': list(next_bundle['rotation_pick']),
                 'consensus_pick': list(next_bundle['consensus_pick']),
                 'three_step_top5': list(next_bundle['three_step_top5']),
+                'regime': next_bundle.get('regime', 'neutral'),
+                'confidence': next_bundle.get('confidence', 0.5),
             }
 
         hits = sum(hit_records)
@@ -1217,15 +1337,7 @@ class LuckyNumberGUI:
         windows_3 = [any(hit_records[i:i + 3]) for i in range(len(hit_records) - 2)]
         win3_rate = sum(windows_3) / len(windows_3) * 100 if windows_3 else 0.0
 
-        max_miss = 0
-        cur_miss = 0
-        for hit in hit_records:
-            if hit:
-                cur_miss = 0
-            else:
-                cur_miss += 1
-                max_miss = max(max_miss, cur_miss)
-
+        miss_summary = self._summarize_tail_miss_streaks(hit_records)
         closed_groups = len(group_results)
         successful_groups = sum(1 for g in group_results if g['hit_any'])
         group_success_rate = successful_groups / closed_groups * 100 if closed_groups else 0.0
@@ -1240,7 +1352,10 @@ class LuckyNumberGUI:
             'hit_rate': hit_rate,
             'windows_3': windows_3,
             'win3_rate': win3_rate,
-            'max_miss': max_miss,
+            'max_miss': miss_summary['max_miss'],
+            'miss_streaks': miss_summary['streaks'],
+            'ge3_miss_count': miss_summary['ge3'],
+            'ge5_miss_count': miss_summary['ge5'],
             'closed_groups': closed_groups,
             'successful_groups': successful_groups,
             'group_success_rate': group_success_rate,
