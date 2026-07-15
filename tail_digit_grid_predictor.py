@@ -71,14 +71,15 @@ class TailDigitGridPredictor:
     GAP_W  = 0.10
     ROW_W  = 0.35
 
-    # 惩罚 + 动态窗口参数（300期网格搜索最优，max_miss=7, hit=39.3%）
-    PENALTY_FACTOR = 0.10   # 每次miss对预测尾数的惩罚增量
+    # 固定TOP3反连败参数（最近400期滚动搜索：max_miss=7，命中148/400）
+    PENALTY_FACTOR = 0.20   # 加强对刚刚失效尾数的惩罚，避免连续重复覆盖
     PENALTY_MAX    = 1.0    # 惩罚上限（防止完全排除某尾数）
-    WINDOW_NORMAL  = 20     # 正常模式近期窗口（期数）
-    WINDOW_RESCUE  = 5      # 救援模式近期窗口（超短，追近期变化）
-    MISS_THRESH    = 2      # 触发救援模式的连续miss阈值
+    WINDOW_NORMAL  = 25     # 正常模式窗口，降低短期噪声
+    WINDOW_RESCUE  = 10     # 救援窗口，保留足够样本避免5期窗口过拟合
+    MISS_THRESH    = 1      # 首次miss即切换反连败救援评分
+    MAX_TAILS      = 3      # 硬上限：该模型永不扩充到3个尾数以上
 
-    def __init__(self, gap_window=50, decay=0.85):
+    def __init__(self, gap_window=50, decay=0.90):
         self.gap_window = gap_window
         self.decay = decay
         # 状态变量
@@ -172,6 +173,8 @@ class TailDigitGridPredictor:
         返回:
             list: 恰好top_n个预测尾数（0-9）
         """
+        # 强制限制：即使调用方传入更大的值，也绝不扩充尾数数量。
+        top_n = max(1, min(int(top_n), self.MAX_TAILS))
         if not numbers:
             return list(range(top_n))
         tail_hist = [n % 10 for n in numbers]
@@ -205,6 +208,8 @@ class TailDigitGridPredictor:
         返回:
             dict: 包含预测尾数、得分、网格分析、当前模式等
         """
+        # 与 predict() 使用同一硬上限，避免详情页与实际预测不一致。
+        top_n = max(1, min(int(top_n), self.MAX_TAILS))
         if not numbers:
             return {'top_tails': list(range(top_n)), 'details': {}}
 

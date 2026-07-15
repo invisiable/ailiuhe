@@ -29,6 +29,7 @@ from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor  # 
 from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor  # 蒸馏TOP4反miss(52.3%)
 from distill_top15_predictor import DistillTop15Predictor  # 蒸馏TOP15(TOP9生肖过滤×Top15号码模型)
 from distilled_top15_predictor import DistilledTop15Predictor  # 最佳蒸馏TOP15(反模式+PreciseTop15, 36.25%命中, 最大连败9期)
+from top15_advanced_model import Top15AdvancedModel  # TOP15 advanced model
 from tail_digit_predictor import TailDigitPredictor, TailDigitRotationPredictor, TAIL_DIGIT_NUMBERS, number_to_tail  # 尾数预测模型
 from tail_digit_top3_predictor import TailDigitTop3Predictor  # 尾数TOP3预测模型
 from tail_digit_grid_predictor import TailDigitGridPredictor  # 5x2网格区域预测器
@@ -637,6 +638,12 @@ class LuckyNumberGUI:
             state='normal', width=22
         )
         self.distilled_top20_button.grid(row=7, column=0, padx=5, pady=5)
+
+        self.top15_advanced_button = ttk.Button(
+            pred_frame, text="数字TOP15高级", command=self.analyze_top15_advanced_model,
+            state='normal', width=22
+        )
+        self.top15_advanced_button.grid(row=7, column=1, padx=5, pady=5)
 
         # 预测结果显示区域
         result_frame = ttk.Frame(pred_frame)
@@ -5118,6 +5125,61 @@ class LuckyNumberGUI:
             self.log_output(f"TOP10 命中率: {val['top10_rate']:.1f}%  (随机基准 {10/49*100:.1f}%)\n")
             self.log_output(f"TOP15 命中率: {val['top15_rate']:.1f}%  (随机基准 {15/49*100:.1f}%)\n\n")
 
+            # recent 400-period detail + max miss streak
+            detail_periods = min(400, len(draws) - 30)
+            detail_rows = []
+            current_miss_streak = 0
+            max_miss_streak = 0
+            hit_count = 0
+            detail_start_idx = len(draws) - detail_periods
+
+            for i in range(detail_start_idx, len(draws)):
+                hist = draws[:i]
+                if len(hist) < 30:
+                    continue
+
+                detail_candidates, _, _ = generate_candidates(hist, top_n=15)
+                predicted_nums = [c['num'] for c in detail_candidates[:15]]
+                actual_draw = draws[i]
+                is_hit = actual_draw.number in predicted_nums
+
+                if is_hit:
+                    hit_count += 1
+                    current_miss_streak = 0
+                else:
+                    current_miss_streak += 1
+                    if current_miss_streak > max_miss_streak:
+                        max_miss_streak = current_miss_streak
+
+                detail_rows.append({
+                    'date': actual_draw.date,
+                    'actual': actual_draw.number,
+                    'predicted': predicted_nums,
+                    'is_hit': is_hit,
+                })
+
+            if detail_rows:
+                detail_total = len(detail_rows)
+                detail_rate = hit_count / detail_total * 100
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"最近{detail_total}期TOP15预测详情\n")
+                self.log_output(f"{'='*80}\n")
+                self.log_output(f"命中次数: {hit_count}/{detail_total}\n")
+                self.log_output(f"命中率: {detail_rate:.1f}%\n")
+                self.log_output(f"最长连续不中: {max_miss_streak}期\n\n")
+                self.log_output(f"{'期号':<12} {'开奖号':>6} {'是否命中':>8} 预测TOP15\n")
+                self.log_output('-' * 80 + '\n')
+
+                for row in detail_rows:
+                    hit_text = '命中' if row['is_hit'] else '未中'
+                    predicted_text = ' '.join(f"{num:02d}" for num in row['predicted'])
+                    self.log_output(
+                        f"{row['date']:<12} {row['actual']:>6} {hit_text:>8} {predicted_text}\n"
+                    )
+
+                self.log_output("\n")
+
+
             # ── 量化推荐候选号码
             self.log_output(f"{'='*80}\n")
             self.log_output(f"🔮 下一期量化推荐（TOP15）\n")
@@ -5222,11 +5284,12 @@ class LuckyNumberGUI:
             self.log_output(f"  行均衡 35%: 某行出现多 → 另一行的尾数加成(均值回归)\n")
             self.log_output(f"  衰减频率15%: 指数衰减加权近期频率\n")
             self.log_output(f"  间隔冷热10%: 距上次出现越久 → 分越高\n")
-            self.log_output(f"\n300期验证(v2): 39.3%单期命中 | 77.9% 3期窗口 | 最大miss 7期\n")
-            self.log_output(f"  (v1无状态版本: 37.3%单期 | 75.2% 3期 | 最大miss 13期)\n\n")
+            self.log_output(f"\n固定TOP3反连败模式：每期始终只输出3个尾数，不会扩充。\n")
+            self.log_output(f"  最近400期滚动搜索参数：148/400命中(37.0%)，最长连续miss 7期。\n")
+            self.log_output(f"  说明：固定TOP3无法严格保证5期内必命中；界面将展示当前数据的实时回测结果。\n\n")
 
             # 回测
-            test_periods = min(300, len(df) - 50)
+            test_periods = min(400, len(df) - 50)
             start_idx = len(df) - test_periods
 
             predictor = TailDigitGridPredictor()
@@ -5286,6 +5349,18 @@ class LuckyNumberGUI:
             windows_3 = [any(hit_records[i:i+3]) for i in range(len(hit_records)-2)]
             win3_rate = sum(windows_3) / len(windows_3) * 100
 
+            # 条件命中率：本期命中概率，按预测前连续未中期数分组。
+            # 0 表示上一期命中；n>0 表示刚连续未中 n 期。
+            conditional_stats = defaultdict(lambda: {'total': 0, 'hits': 0})
+            for idx, current_hit in enumerate(hit_records[1:], start=1):
+                preceding_misses = 0
+                cursor = idx - 1
+                while cursor >= 0 and not hit_records[cursor]:
+                    preceding_misses += 1
+                    cursor -= 1
+                conditional_stats[preceding_misses]['total'] += 1
+                conditional_stats[preceding_misses]['hits'] += int(current_hit)
+
             self.log_output(f"\n{'='*80}\n")
             self.log_output(f"📊 回测结果汇总\n")
             self.log_output(f"{'='*80}\n")
@@ -5293,6 +5368,13 @@ class LuckyNumberGUI:
             self.log_output(f"随机基线: 30.0% (3/10), 提升: +{hit_rate-30:.1f}%\n")
             self.log_output(f"⭐ 三期窗口命中: {sum(windows_3)}/{len(windows_3)} = {win3_rate:.1f}%\n")
             self.log_output(f"最大连续miss: {max_miss}期\n")
+            self.log_output(f"\n🎯 条件命中率（固定TOP3，下一期）\n")
+            self.log_output(f"  条件{' ':<12} 命中/样本{' ':<8} 下一期命中率\n")
+            for preceding_misses in sorted(conditional_stats):
+                stat = conditional_stats[preceding_misses]
+                condition = '上一期命中后' if preceding_misses == 0 else f'连续{preceding_misses}期未中后'
+                probability = stat['hits'] / stat['total'] * 100
+                self.log_output(f"  {condition:<14} {stat['hits']:>3}/{stat['total']:<3}       {probability:>6.2f}%\n")
 
             seg_size = 50
             n_segs = test_periods // seg_size
@@ -6003,6 +6085,99 @@ class LuckyNumberGUI:
 
         except Exception as e:
             error_msg = f"蒸馏TOP20分析失败: {str(e)}"
+            self.log_output(f"\n❌ {error_msg}\n")
+            messagebox.showerror("错误", error_msg)
+            import traceback
+            self.log_output(traceback.format_exc())
+
+
+    def analyze_top15_advanced_model(self):
+        """TOP15 advanced model focused on shorter miss streaks."""
+        threading.Thread(
+            target=self._run_top15_advanced_model_analysis,
+            daemon=True
+        ).start()
+
+    def _run_top15_advanced_model_analysis(self):
+        """Run the TOP15 advanced model analysis."""
+        try:
+            from datetime import datetime
+
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+
+            if len(df) < 60:
+                messagebox.showwarning("警告", "数据不足60期，无法进行TOP15高级模型分析。")
+                return
+
+            model = Top15AdvancedModel(
+                display_count=15,
+                normal_count=15,
+                emergency_count=15,
+                miss_trigger=1,
+                skip_periods=5,
+            )
+            result = model.backtest_recent(df, test_periods=400)
+            summary = result['summary']
+            details = result['details']
+            next_action = result['next_action']
+
+            def preview(nums, limit=5):
+                nums = nums or []
+                shown = nums[:limit]
+                return ' '.join(str(n) for n in shown) if shown else '-'
+
+            self.log_output(f"\n{'='*70}\n")
+            self.log_output("TOP15高级模型（连挂压缩版）\n")
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"分析时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            self.log_output("\u6a21\u578b\u903b\u8f91: \u4e25\u683cTOP15 + \u6700\u4f73\u84b8\u998f15 + \u5355\u6b21\u672a\u4e2d\u540e\u8fdb\u5165\u89c2\u5bdf\u671f\n")
+            self.log_output("\u63a7\u5236\u76ee\u6807: \u4f18\u5148\u538b\u7f29\u5b9e\u9645\u6295\u6ce8\u8fde\u6302\uff0c\u5355\u6b21\u672a\u4e2d\u540e\u7acb\u5373\u8f6c\u5165\u89c2\u5bdf\uff0c\u5c3d\u91cf\u628a\u6700\u957f\u5b9e\u9645\u8fde\u6302\u63a7\u5236\u57285\u671f\u4ee5\u5185\n")
+            self.log_output("\u53c2\u6570\u914d\u7f6e: \u4e25\u683cTOP15 | \u672a\u4e2d1\u671f\u89e6\u53d1\u89c2\u5bdf | \u89c2\u5bdf5\u671f\u540e\u6062\u590d\n\n")
+
+            self.log_output(f"【最近{summary['total_periods']}期汇总】\n")
+            self.log_output(f"  实际投注: {summary['bet_periods']}期 ({summary['coverage_rate']:.1f}%)\n")
+            self.log_output(f"  风控跳过: {summary['skip_periods']}期\n")
+            self.log_output(f"  投注命中: {summary['hit_count']}/{summary['bet_periods']} = {summary['bet_hit_rate']:.2f}%\n")
+            self.log_output(f"  跳过期参考命中: {summary['skipped_reference_hits']}次\n")
+            self.log_output(f"  最长实际投注连挂: {summary['max_bet_miss']}期\n")
+            self.log_output(f"  连挂段数: {summary['miss_segment_count']}段\n")
+            self.log_output(f"  3期内收敛占比: {summary['within_3_ratio']:.1f}%\n")
+            self.log_output(f"  5期内收敛占比: {summary['within_5_ratio']:.1f}%\n")
+            self.log_output(f"  连挂分布: {summary['streak_distribution']}\n\n")
+
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"最近{summary['total_periods']}期预测详情\n")
+            self.log_output(f"{'='*70}\n")
+            self.log_output(f"{'期号':<6}{'日期':<12}{'开奖':<6}{'模式':<8}{'动作':<8}{'池数':<6}{'预测前5':<18}{'结果':<6}{'连挂':<8}{'余跳':<6}{'说明'}\n")
+            self.log_output(f"{'-'*120}\n")
+
+            for item in details:
+                hit_mark = '命中' if item['hit'] else ('参中' if item['reference_hit'] and item['mode'] == 'skip' else '未中')
+                streak_value = item['bet_miss_streak_after'] if item['action_label'] == '投注' else item['bet_miss_streak_before']
+                self.log_output(
+                    f"{item['seq']:<6}{item['date']:<12}{item['actual']:<6}{item['mode_label']:<8}"
+                    f"{item['action_label']:<8}{item['active_count']:<6}{preview(item['display_numbers']):<18}"
+                    f"{hit_mark:<6}{streak_value:<8}{item['skip_remaining_after']:<6}{item['reason']}\n"
+                )
+
+            self.log_output("\n说明: 池数=当期实际启用号码数；预测前5仅展示前5个；参中=该期实际跳过，但参考TOP15本可命中。\n\n")
+
+            self.log_output("【下一期建议】\n")
+            self.log_output(f"  当前状态: {next_action['mode_label']}\n")
+            if next_action['should_bet']:
+                self.log_output("  建议动作: 投注\n")
+                self.log_output(f"  启用池数: {next_action['active_count']}个\n")
+                self.log_output(f"  展示TOP15: {' '.join(str(n) for n in next_action['display_numbers'])}\n")
+            else:
+                self.log_output("  建议动作: 跳过\n")
+                self.log_output(f"  参考TOP15: {' '.join(str(n) for n in next_action['display_numbers'])}\n")
+            self.log_output(f"  触发原因: {next_action['reason']}\n\n")
+
+            self.log_output("✅ TOP15高级模型分析完成！\n")
+
+        except Exception as e:
+            error_msg = f"TOP15高级模型分析失败: {str(e)}"
             self.log_output(f"\n❌ {error_msg}\n")
             messagebox.showerror("错误", error_msg)
             import traceback
@@ -9679,6 +9854,8 @@ class LuckyNumberGUI:
             self.log_output(f"• Stage2: 根据TOP9置信度(第9名-第10名分差)分层:\n")
             self.log_output(f"  - 高置信(≥0.05): MK80选TOP4\n")
             self.log_output(f"  - 低置信(<0.05): v3静态选TOP4\n")
+            self.log_output(f"• 连败切换（始终固定TOP4）: 连败2期→v3热号互补，3期→反miss，4期及以上→v3热号互补\n")
+            self.log_output(f"• 不扩充至TOP5；最近400期滚动回测：最长连续miss 7期\n")
             self.log_output(f"• 固定投入: 4生肖×4元=16元, 命中奖励47元\n")
             self.log_output(f"• 随机基线: 33.3%\n\n")
 
@@ -9703,6 +9880,7 @@ class LuckyNumberGUI:
                 actual_zodiac = NUM_TO_ZODIAC_2026[actual_num]
                 predicted, mode, scores, confidence, excluded = predictor.predict_with_details(hist_numbers, top_n=4)
                 hit = actual_zodiac in predicted
+                predictor.record_result(hit)
                 hit_records.append(hit)
 
                 total_cost += len(predicted) * 4
@@ -9710,7 +9888,9 @@ class LuckyNumberGUI:
                     total_reward += 47
 
                 # 简化模式名
-                if "高置信" in mode:
+                if "连败" in mode:
+                    mode_short = mode.split('(')[0]
+                elif "高置信" in mode:
                     mode_short = "高置信→MK80"
                 else:
                     mode_short = "低置信→v3"
@@ -10980,14 +11160,14 @@ class LuckyNumberGUI:
             self.log_output(f"\n{traceback.format_exc()}\n")
     
     def compare_top15_vs_top4(self):
-        """对比TOP15和生肖TOP4的最近300期中奖情况"""
+        """对比TOP15和生肖TOP4的最近400期中奖情况，并输出生肖对应号码去重详情"""
         try:
             from datetime import datetime
             from recommended_zodiac_top4_strategy import RecommendedZodiacTop4Strategy
             from precise_top15_predictor import PreciseTop15Predictor
             
             self.log_output(f"\n{'='*120}\n")
-            self.log_output(f"📊 精准TOP15 vs 生肖TOP4 对比分析 - 最近300期中奖对比\n")
+            self.log_output(f"📊 精准TOP15 vs 生肖TOP4 对比分析 - 最近400期中奖对比\n")
             self.log_output(f"{'='*120}\n")
             
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -10997,16 +11177,16 @@ class LuckyNumberGUI:
             file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
             df = pd.read_csv(file_path, encoding='utf-8-sig')
             
-            if len(df) < 300:
-                messagebox.showwarning("警告", "数据不足300期，无法进行对比分析")
+            if len(df) < 2:
+                messagebox.showwarning("警告", "数据不足2期，无法进行对比分析")
                 return
             
-            self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
-            self.log_output(f"对比期数: 最近300期\n\n")
-            
-            # 分析最近300期
-            test_periods = min(300, len(df))
+            target_periods = 400
+            test_periods = min(target_periods, len(df) - 1)
             start_idx = len(df) - test_periods
+
+            self.log_output(f"✅ 数据加载完成: {len(df)}期\n")
+            self.log_output(f"对比期数: 最近{test_periods}期\n\n")
             
             self.log_output(f"{'='*120}\n")
             self.log_output("第一步：生成精准TOP15和生肖TOP4的历史预测\n")
@@ -11024,14 +11204,16 @@ class LuckyNumberGUI:
             for i in range(start_idx, len(df)):
                 # 获取当期数据
                 current_row = df.iloc[i]
+                period = i + 1
                 date = current_row['date']
                 actual_number = current_row['number']
-                actual_animal = current_row['animal']
+                actual_animal = str(current_row['animal']).strip()
                 
                 # 精准TOP15预测（使用i之前的数据）
                 train_numbers = df.iloc[:i]['number'].values
                 top15_pred = top15_predictor.predict(train_numbers)
                 top15_hit = actual_number in top15_pred
+                top15_set = set(top15_pred)
                 
                 # 更新精准TOP15性能跟踪（重要：保持与精准TOP15投注分析一致）
                 top15_predictor.update_performance(top15_pred, actual_number)
@@ -11041,6 +11223,23 @@ class LuckyNumberGUI:
                 top4_prediction = top4_strategy.predict_top4(train_animals)
                 top4_pred = top4_prediction['top4']
                 top4_hit = actual_animal in top4_pred
+                top4_number_map = {
+                    zodiac: sorted(ZODIAC_NUMS_2026.get(zodiac, []))
+                    for zodiac in top4_pred
+                }
+                top4_number_set = {
+                    number
+                    for zodiac_numbers in top4_number_map.values()
+                    for number in zodiac_numbers
+                }
+                top4_numbers = sorted(top4_number_set)
+                overlap_numbers = sorted(top15_set & top4_number_set)
+                top4_unique_numbers = sorted(top4_number_set - top15_set)
+                combined_unique_numbers = sorted(top15_set | top4_number_set)
+                top4_number_hit = actual_number in top4_number_set
+                overlap_hit = actual_number in overlap_numbers
+                top4_unique_hit = actual_number in top4_unique_numbers
+                combined_unique_hit = actual_number in combined_unique_numbers
                 
                 # 更新策略性能监控
                 top4_strategy.update_performance(top4_hit)
@@ -11049,14 +11248,26 @@ class LuckyNumberGUI:
                 
                 # 记录对比数据
                 comparison_data.append({
+                    'period': period,
                     'date': date,
                     'actual_number': actual_number,
                     'actual_animal': actual_animal,
                     'top15_pred': top15_pred,
                     'top15_hit': top15_hit,
                     'top4_pred': top4_pred,
+                    'top4_number_map': top4_number_map,
+                    'top4_numbers': top4_numbers,
+                    'top4_number_hit': top4_number_hit,
+                    'overlap_numbers': overlap_numbers,
+                    'overlap_hit': overlap_hit,
+                    'top4_unique_numbers': top4_unique_numbers,
+                    'top4_unique_hit': top4_unique_hit,
+                    'combined_unique_numbers': combined_unique_numbers,
+                    'combined_unique_hit': combined_unique_hit,
                     'top4_hit': top4_hit,
-                    'both_hit': top15_hit and top4_hit
+                    'both_hit': top15_hit and top4_hit,
+                    'only_top15_hit': top15_hit and not top4_hit,
+                    'only_top4_hit': top4_hit and not top15_hit
                 })
                 
                 if (i - start_idx + 1) % 10 == 0:
@@ -11070,6 +11281,15 @@ class LuckyNumberGUI:
             both_hits = sum(1 for d in comparison_data if d['both_hit'])
             both_miss = sum(1 for d in comparison_data if not d['top15_hit'] and not d['top4_hit'])
             only_one_hit = sum(1 for d in comparison_data if (d['top15_hit'] or d['top4_hit']) and not d['both_hit'])
+            only_top15_hits = sum(1 for d in comparison_data if d['only_top15_hit'])
+            only_top4_hits = sum(1 for d in comparison_data if d['only_top4_hit'])
+            top4_number_hits = sum(1 for d in comparison_data if d['top4_number_hit'])
+            overlap_hits = sum(1 for d in comparison_data if d['overlap_hit'])
+            top4_unique_hits = sum(1 for d in comparison_data if d['top4_unique_hit'])
+            combined_unique_hits = sum(1 for d in comparison_data if d['combined_unique_hit'])
+            avg_top4_pool_size = sum(len(d['top4_numbers']) for d in comparison_data) / len(comparison_data)
+            avg_top4_unique_size = sum(len(d['top4_unique_numbers']) for d in comparison_data) / len(comparison_data)
+            avg_combined_size = sum(len(d['combined_unique_numbers']) for d in comparison_data) / len(comparison_data)
             
             top15_hit_rate = top15_hits / len(comparison_data) * 100
             top4_hit_rate = top4_hits / len(comparison_data) * 100
@@ -11106,79 +11326,66 @@ class LuckyNumberGUI:
             self.log_output(f"  两种都中: {both_hits}期 ({both_hit_rate:.2f}%) 🌟\n")
             self.log_output(f"  两种都未中: {both_miss}期 ({both_miss_rate:.2f}%) 💔\n")
             self.log_output(f"  仅1个方案中: {only_one_hit}期 ({only_one_rate:.2f}%)\n")
-            self.log_output(f"    - 仅TOP15中: {sum(1 for d in comparison_data if d['top15_hit'] and not d['top4_hit'])}期\n")
-            self.log_output(f"    - 仅TOP4中: {sum(1 for d in comparison_data if d['top4_hit'] and not d['top15_hit'])}期\n\n")
+            self.log_output(f"    - 仅TOP15中: {only_top15_hits}期\n")
+            self.log_output(f"    - 仅TOP4中: {only_top4_hits}期\n\n")
+            
+            self.log_output(f"【TOP4生肖对应号码 / 去重命中统计】\n")
+            self.log_output(f"  生肖TOP4对应号池命中: {top4_number_hits}期 ({top4_number_hits / len(comparison_data) * 100:.2f}%)\n")
+            self.log_output(f"  重复号码命中: {overlap_hits}期 ({overlap_hits / len(comparison_data) * 100:.2f}%)\n")
+            self.log_output(f"  去重新增号码命中: {top4_unique_hits}期 ({top4_unique_hits / len(comparison_data) * 100:.2f}%)\n")
+            self.log_output(f"  去重组合号码命中: {combined_unique_hits}期 ({combined_unique_hits / len(comparison_data) * 100:.2f}%)\n")
+            self.log_output(f"  平均号池大小: 生肖TOP4 {avg_top4_pool_size:.1f}个 | 去重新增 {avg_top4_unique_size:.1f}个 | 去重组合 {avg_combined_size:.1f}个\n\n")
             
             # 输出详细对比表格
             self.log_output(f"{'='*120}\n")
-            self.log_output("第三步：详细对比表（最近300期）\n")
+            self.log_output(f"第三步：最近{test_periods}期预测详情（含生肖对应号码 / 去重号码）\n")
             self.log_output(f"{'='*120}\n\n")
             
-            self.log_output(
-                f"{'日期':<12} "
-                f"{'中奖号':<6} "
-                f"{'生肖':<6} "
-                f"{'TOP15':<8} "
-                f"{'TOP15预测':<50} "
-                f"{'TOP4':<8} "
-                f"{'TOP4预测':<30} "
-                f"{'都中':<6} "
-                f"{'都未中':<8} "
-                f"{'仅1中':<8}\n"
-            )
-            self.log_output("-" * 170 + "\n")
-            
             for data in comparison_data:
-                # 格式化TOP15预测（缩短显示）
-                top15_str = str(data['top15_pred'])
-                if len(top15_str) > 48:
-                    top15_str = top15_str[:45] + "..."
-                
-                # 格式化TOP4预测
-                top4_str = ','.join(data['top4_pred'])
-                if len(top4_str) > 28:
-                    top4_str = top4_str[:25] + "..."
-                
-                # 命中标记
-                top15_mark = "✓中" if data['top15_hit'] else "✗失"
-                top4_mark = "✓中" if data['top4_hit'] else "✗失"
-                
-                # 计算三种情况（使用is_前缀避免和统计变量冲突）
-                is_both_hit = data['both_hit']
-                is_both_miss = not data['top15_hit'] and not data['top4_hit']
-                is_only_one = (data['top15_hit'] or data['top4_hit']) and not is_both_hit
-                
-                # 三种情况标记
-                both_hit_mark = "✓✓" if is_both_hit else ""
-                both_miss_mark = "✗✗" if is_both_miss else ""
-                only_one_mark = "✓✗" if is_only_one else ""
-                
-                # 双重命中特殊标记
-                if is_both_hit:
-                    line_prefix = "🌟 "
-                elif is_both_miss:
-                    line_prefix = "💔 "
+                top15_str = ', '.join(f"{num:02d}" for num in data['top15_pred'])
+                top4_str = ', '.join(data['top4_pred'])
+                zodiac_number_str = ' | '.join(
+                    f"{zodiac}:{'/'.join(f'{num:02d}' for num in numbers)}"
+                    for zodiac, numbers in data['top4_number_map'].items()
+                )
+                overlap_str = ', '.join(f"{num:02d}" for num in data['overlap_numbers']) if data['overlap_numbers'] else '-'
+                top4_unique_str = ', '.join(f"{num:02d}" for num in data['top4_unique_numbers']) if data['top4_unique_numbers'] else '-'
+                combined_str = ', '.join(f"{num:02d}" for num in data['combined_unique_numbers'])
+
+                if data['both_hit']:
+                    line_prefix = "🌟"
+                elif data['only_top15_hit']:
+                    line_prefix = "🎯"
+                elif data['only_top4_hit']:
+                    line_prefix = "🐉"
                 else:
-                    line_prefix = "   "
-                
+                    line_prefix = "💔"
+
                 self.log_output(
-                    f"{line_prefix}{str(data['date']):<12} "
-                    f"{data['actual_number']:<6} "
-                    f"{data['actual_animal']:<6} "
-                    f"{top15_mark:<8} "
-                    f"{top15_str:<50} "
-                    f"{top4_mark:<8} "
-                    f"{top4_str:<30} "
-                    f"{both_hit_mark:<6} "
-                    f"{both_miss_mark:<8} "
-                    f"{only_one_mark:<8}\n"
+                    f"{line_prefix} 第{data['period']:>3}期 {str(data['date']):<12} "
+                    f"实际 {data['actual_number']:>2}号({data['actual_animal']})\n"
+                )
+                self.log_output(f"    TOP15预测: {top15_str}\n")
+                self.log_output(f"    TOP4生肖: {top4_str}\n")
+                self.log_output(f"    生肖对应号码: {zodiac_number_str}\n")
+                self.log_output(f"    重复号码: {overlap_str}\n")
+                self.log_output(f"    去重新增号码: {top4_unique_str}\n")
+                self.log_output(f"    去重组合号码: {combined_str}\n")
+                self.log_output(
+                    f"    命中情况: "
+                    f"TOP15{'✅' if data['top15_hit'] else '❌'} | "
+                    f"生肖TOP4{'✅' if data['top4_hit'] else '❌'} | "
+                    f"生肖号池{'✅' if data['top4_number_hit'] else '❌'} | "
+                    f"重复号{'✅' if data['overlap_hit'] else '❌'} | "
+                    f"去重新增{'✅' if data['top4_unique_hit'] else '❌'} | "
+                    f"去重组合{'✅' if data['combined_unique_hit'] else '❌'}\n\n"
                 )
             
             self.log_output("\n说明：\n")
-            self.log_output("  🌟 = 两种投注都中\n")
-            self.log_output("  💔 = 两种投注都未中\n")
-            self.log_output("  ✓✓ = 都中  ✗✗ = 都未中  ✓✗ = 仅1个方案中\n\n")
-            
+            self.log_output("  🌟 = TOP15与生肖TOP4同时命中（实际号码落在重复号码内）\n")
+            self.log_output("  🎯 = 仅TOP15命中\n")
+            self.log_output("  🐉 = 仅生肖TOP4去重新增号码命中\n")
+            self.log_output("  💔 = TOP15与生肖TOP4都未命中\n\n")
             # 计算收益对比
             self.log_output(f"{'='*120}\n")
             self.log_output("第四步：收益对比分析（固定投注）\n")
@@ -11218,8 +11425,8 @@ class LuckyNumberGUI:
             # 验证计算逻辑
             total_periods = len(comparison_data)
             verify_total = both_hits + only_one_hit + both_miss
-            verify_top15 = both_hits + sum(1 for d in comparison_data if d['top15_hit'] and not d['top4_hit'])
-            verify_top4 = both_hits + sum(1 for d in comparison_data if d['top4_hit'] and not d['top15_hit'])
+            verify_top15 = both_hits + only_top15_hits
+            verify_top4 = both_hits + only_top4_hits
             
             self.log_output(f"【组合投注收益（同时购买两种方案）】\n")
             self.log_output(f"  每期投入: 31元 (TOP15 15元 + TOP4 16元)\n")
