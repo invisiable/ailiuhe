@@ -574,6 +574,18 @@ class LuckyNumberGUI:
             state='normal', width=20
         )
         self.probability_betting_button.grid(row=4, column=3, padx=5, pady=5)
+
+        self.top15_streak_button = ttk.Button(
+            pred_frame, text="15数字-连不中监测", command=self.analyze_top15_streak_control,
+            state='normal', width=22
+        )
+        self.top15_streak_button.grid(row=4, column=4, padx=5, pady=5)
+
+        self.top20_streak_button = ttk.Button(
+            pred_frame, text="20数字-连不中监测", command=self.analyze_top20_streak_control,
+            state='normal', width=22
+        )
+        self.top20_streak_button.grid(row=4, column=5, padx=5, pady=5)
         
         # 第三行：多策略对比
         # TOP5多策略投注按钮（新增）
@@ -4575,6 +4587,91 @@ class LuckyNumberGUI:
             import traceback
             self.log_output(traceback.format_exc())
     
+    def analyze_top15_streak_control(self):
+        """Run a fixed TOP15 longest-miss audit without changing the predictor."""
+        import threading
+        threading.Thread(target=self._run_number_streak_control, args=(15,), daemon=True).start()
+
+    def analyze_top20_streak_control(self):
+        """Run a fixed TOP20 longest-miss audit without changing the predictor."""
+        import threading
+        threading.Thread(target=self._run_number_streak_control, args=(20,), daemon=True).start()
+
+    def _run_number_streak_control(self, top_n):
+        """Display the latest 400 walk-forward predictions and miss streaks."""
+        try:
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            numbers = df['number'].astype(int).tolist()
+            test_periods = min(400, len(numbers) - 25)
+            if test_periods <= 0:
+                messagebox.showwarning("警告", "数据不足，无法进行连续未中回测")
+                return
+
+            start = len(numbers) - test_periods
+            # TOP15 is calibrated on the earlier 300 draws and checked on the
+            # latest 100: a 15-draw input and a full ranking reduce the
+            # longest miss without changing the fixed 15-number coverage.
+            train_window = 15 if top_n in (15, 20) else 25
+
+            def select_numbers(index):
+                history = numbers[max(0, index - train_window):index]
+                if top_n == 15:
+                    predictor = PreciseTop15Predictor()
+                    return predictor.predict(history, k=49)[:15]
+                if top_n == 20:
+                    from top20_dual_horizon_predictor import Top20DualHorizonPredictor
+                    return Top20DualHorizonPredictor().predict(numbers[:index], top_n=20)
+                predictor = PreciseTop15Predictor()
+                return predictor.predict(history, k=top_n)
+
+            hits = 0
+            miss_streak = 0
+            max_miss = 0
+            rows = []
+            for index in range(start, len(numbers)):
+                # A fresh predictor and fixed training window prevent state leakage.
+                predicted = select_numbers(index)
+                actual = numbers[index]
+                hit = actual in predicted
+                if hit:
+                    hits += 1
+                    miss_streak = 0
+                else:
+                    miss_streak += 1
+                    max_miss = max(max_miss, miss_streak)
+                rows.append((str(df.iloc[index]['date']), actual, predicted, hit, miss_streak))
+
+            hit_rate = hits / test_periods * 100
+            next_predicted = select_numbers(len(numbers))
+            self.log_output(f"\n{'=' * 95}\n")
+            self.log_output(f"{top_n}数字-连续未中监测｜最近{test_periods}期滚动回测\n")
+            if top_n == 20:
+                self.log_output("固定规则：每期使用此前全部历史计算独立量化分数，不因未中改变候选数量。\n")
+            else:
+                self.log_output(f"固定规则：每期仅用此前最近{train_window}期数据生成固定数量候选，不因未中改变候选数量。\n")
+            if top_n == 15:
+                self.log_output("TOP15校准：生成完整49位排序后截取前15位；参数在前300期校准、后100期验证。\n")
+            elif top_n == 20:
+                self.log_output("TOP20独立模型：6期短窗口与25期中窗口的完整排序融合，按排名投票生成TOP20。\n")
+            self.log_output(f"命中：{hits}/{test_periods} = {hit_rate:.1f}%｜最长连续未中：{max_miss}期\n")
+            self.log_output(f"{'日期':>12} {'实际':>4} {'结果':>5} {'连未中':>7} 预测号码\n")
+            self.log_output("-" * 95 + "\n")
+            for date_value, actual, predicted, hit, streak in rows:
+                status = "命中" if hit else "未中"
+                self.log_output(f"{date_value:>12} {actual:>4} {status:>5} {streak:>7} {predicted}\n")
+            self.log_output(f"\n下一期固定TOP{top_n}：{next_predicted}\n")
+            self.result_text.delete('1.0', tk.END)
+            self.result_text.insert('1.0',
+                                    f"TOP{top_n}连续未中监测\n\n"
+                                    f"最近{test_periods}期命中率：{hit_rate:.1f}%（{hits}/{test_periods}）\n"
+                                    f"最长连续未中：{max_miss}期\n"
+                                    f"下一期TOP{top_n}：{next_predicted}")
+        except Exception as error:
+            self.log_output(f"\nTOP{top_n}连续未中监测失败：{error}\n")
+            import traceback
+            self.log_output(traceback.format_exc())
+
     def analyze_top15_detail(self):
         """TOP15预测详情 - 输出最近300期每期完整预测号码和命中情况"""
         threading.Thread(
@@ -4840,7 +4937,8 @@ class LuckyNumberGUI:
         """尾数TOP3预测分析 - 纯尾数统计，每次预测3个尾数"""
         try:
             from datetime import datetime
-            from tail_digit_top3_predictor import TailDigitTop3Predictor, TAIL_DIGIT_NUMBERS, number_to_tail
+            from tail_digit_top3_predictor import TAIL_DIGIT_NUMBERS, number_to_tail
+            from tail_digit_three_period_predictor import validate_three_period_top3
 
             self.log_output(f"\n{'='*80}\n")
             self.log_output(f"🔢 尾数TOP3预测分析 - 纯尾数统计模型\n")
@@ -4853,6 +4951,51 @@ class LuckyNumberGUI:
             file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
             df = pd.read_csv(file_path, encoding='utf-8-sig')
             numbers = df['number'].values.tolist()
+
+            if len(df) < 61:
+                messagebox.showwarning("警告", "固定三期TOP3策略至少需要61期数据")
+                return
+
+            result = validate_three_period_top3(
+                numbers, dates=df['date'].astype(str).tolist(), test_periods=400
+            )
+            self.log_output(f"\n{'=' * 80}\n")
+            self.log_output("🔢 尾数TOP3投注：固定三期组模拟\n")
+            self.log_output(f"{'=' * 80}\n")
+            self.log_output("规则：每组始终只预测3个尾数；同一组最多持有3期。\n")
+            self.log_output("命中后立即重算下一组；第三期仍未中时，下期重算下一组。\n")
+            self.log_output("模型：固定稳健频率+周期评分，不根据未中次数切换模型或排除尾数。\n")
+            self.log_output("权重由四个滚动时间段的最坏最长未中预先选定：频率40%、周期27%、冷号18%、转移11%、趋势2%、间隔1%。\n")
+            self.log_output("轻度校正：上一期命中尾数在下一组评分减0.02，但仍可进入TOP3。\n")
+            self.log_output("说明：三期必中无法保证；以下为无未来数据的滚动模拟结论。\n\n")
+            self.log_output(f"最近{result['total']}期：单期命中 {result['hits']}/{result['total']} = {result['hit_rate']:.1f}%\n")
+            self.log_output(f"完整三期组命中：{result['cycle_hits']}/{result['settled_cycles']} = "
+                            f"{result['cycle_hit_rate']:.1f}%；三期未中组：{result['three_miss_cycles']}组；"
+                            f"最长连续未中：{result['max_miss']}期\n\n")
+            self.log_output("四段滚动稳定性（每段100期）：\n")
+            for offset in (300, 200, 100, 0):
+                fold = validate_three_period_top3(
+                    numbers, test_periods=100, end_index=len(numbers) - offset
+                )
+                self.log_output(f"  {fold['rows'][0]['date']}～{fold['rows'][-1]['date']}: "
+                                f"单期{fold['hit_rate']:.1f}%｜三期组{fold['cycle_hit_rate']:.1f}%｜"
+                                f"最长未中{fold['max_miss']}期\n")
+            self.log_output("\n")
+            self.log_output(f"{'期':>3} {'日期':>12} {'号码':>4} {'尾数':>4} {'预测尾数':>10} {'组':>3} {'组内':>4} {'结果':>5} {'处理':>10}\n")
+            self.log_output("-" * 76 + "\n")
+            for row in result['rows']:
+                action = "命中换组" if row['reset_reason'] == 'hit' else ("三期换组" if row['reset_reason'] == 'three_misses' else "持有")
+                mark = "命中" if row['hit'] else "未中"
+                self.log_output(f"{row['period']:>3} {row['date']:>12} {row['actual']:>4} {row['tail']:>4} "
+                                f"{','.join(map(str, row['predicted'])):>10} {row['cycle']:>3} {row['cycle_draw']}/3 "
+                                f"{mark:>5} {action:>10}\n")
+
+            next_predicted, _, status = result['predictor'].predict_with_details(numbers)
+            coverage = sorted(n for tail in next_predicted for n in TAIL_DIGIT_NUMBERS[tail])
+            title = "新三期组" if status['action'] == 'new_cycle' else "延续当前组"
+            self.log_output(f"\n{'=' * 80}\n下期建议：{title}（第{status['cycle']}组，第{status['draw']}/3期）\n")
+            self.log_output(f"固定尾数：{next_predicted}；覆盖{len(coverage)}个号码：{coverage}\n")
+            return
 
             if len(df) < 50:
                 messagebox.showwarning("警告", "数据不足50期")
