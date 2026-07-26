@@ -1,0 +1,421 @@
+{
+  "plan_date": "2026-07-25",
+  "data_through": "2026-07-24",
+  "selection_rule": "当前已连续1期未中，属于“1期”状态；历史同状态49/104期命中（原始47.12%），经小样本收缩后为47.46%，在四类模型中最高。",
+  "status": "BET",
+  "selected_model": "五大生肖",
+  "target": "生肖",
+  "historical_hit_rate": 49.25,
+  "recent_100_hit_rate": 48.0,
+  "recent_30_hit_rate": 46.666666666666664,
+  "historical_roi": 15.7375,
+  "recent_100_roi": 12.8,
+  "max_miss_streak": 8,
+  "current_miss_streak": 1,
+  "streak_bucket": "1期",
+  "conditional_samples": 104,
+  "conditional_hits": 49,
+  "conditional_hit_rate": 47.11538461538461,
+  "adjusted_conditional_hit_rate": 47.45967741935484,
+  "adjusted_conditional_roi": 11.530241935483865,
+  "selection": [
+    "鸡",
+    "猴",
+    "牛",
+    "狗",
+    "蛇"
+  ],
+  "numbers": [
+    2,
+    6,
+    9,
+    10,
+    11,
+    14,
+    18,
+    21,
+    22,
+    23,
+    26,
+    30,
+    33,
+    34,
+    35,
+    38,
+    42,
+    45,
+    46,
+    47
+  ],
+  "stake_rule": "每个生肖固定4单位，仅投1轮，不倍投、不追损；本期总投入20单位。",
+  "disclaimer": "命中率和ROI均为历史滚动回测结果，不是未来收益保证。",
+  "benchmarks": [
+    {
+      "model": "五大生肖",
+      "target": "生肖",
+      "periods": 400,
+      "hit_rate": 49.25,
+      "recent_100_hit_rate": 48.0,
+      "recent_30_hit_rate": 46.666666666666664,
+      "average_coverage": 5.0,
+      "random_baseline": 41.66666666666667,
+      "edge_over_random": 7.583333333333329,
+      "roi": 15.7375,
+      "recent_100_roi": 12.8,
+      "max_miss_streak": 8,
+      "current_miss_streak": 1,
+      "streak_bucket": "1期",
+      "conditional_samples": 104,
+      "conditional_hits": 49,
+      "conditional_hit_rate": 47.11538461538461,
+      "adjusted_conditional_hit_rate": 47.45967741935484,
+      "adjusted_conditional_roi": 11.530241935483865,
+      "streak_profile": {
+        "0期": {
+          "samples": 198,
+          "hits": 93,
+          "hit_rate": 46.96969696969697,
+          "adjusted_hit_rate": 47.178899082568805
+        },
+        "1期": {
+          "samples": 104,
+          "hits": 49,
+          "hit_rate": 47.11538461538461,
+          "adjusted_hit_rate": 47.45967741935484
+        },
+        "2期": {
+          "samples": 55,
+          "hits": 32,
+          "hit_rate": 58.18181818181818,
+          "adjusted_hit_rate": 55.800000000000004
+        },
+        "3～4期": {
+          "samples": 34,
+          "hits": 18,
+          "hit_rate": 52.94117647058824,
+          "adjusted_hit_rate": 51.57407407407407
+        },
+        "5～6期": {
+          "samples": 7,
+          "hits": 4,
+          "hit_rate": 57.14285714285714,
+          "adjusted_hit_rate": 51.2962962962963
+        },
+        "7期以上": {
+          "samples": 2,
+          "hits": 1,
+          "hit_rate": 50.0,
+          "adjusted_hit_rate": 49.31818181818181
+        }
+      },
+      "next_selection": [
+        "鸡",
+        "猴",
+        "牛",
+        "狗",
+        "蛇"
+      ],
+      "next_numbers": [
+        2,
+        6,
+        9,
+        10,
+        11,
+        14,
+        18,
+        21,
+        22,
+        23,
+        26,
+        30,
+        33,
+        34,
+        35,
+        38,
+        42,
+        45,
+        46,
+        47
+      ]
+    },
+    {
+      "model": "精准数字TOP20",
+      "target": "数字",
+      "periods": 400,
+      "hit_rate": 42.25,
+      "recent_100_hit_rate": 47.0,
+      "recent_30_hit_rate": 40.0,
+      "average_coverage": 20.0,
+      "random_baseline": 40.816326530612244,
+      "edge_over_random": 1.433673469387756,
+      "roi": -0.7125,
+      "recent_100_roi": 10.45,
+      "max_miss_streak": 9,
+      "current_miss_streak": 2,
+      "streak_bucket": "2期",
+      "conditional_samples": 58,
+      "conditional_hits": 26,
+      "conditional_hit_rate": 44.827586206896555,
+      "adjusted_conditional_hit_rate": 44.16666666666667,
+      "adjusted_conditional_roi": 3.791666666666682,
+      "streak_profile": {
+        "0期": {
+          "samples": 170,
+          "hits": 65,
+          "hit_rate": 38.23529411764706,
+          "adjusted_hit_rate": 38.65789473684211
+        },
+        "1期": {
+          "samples": 105,
+          "hits": 46,
+          "hit_rate": 43.80952380952381,
+          "adjusted_hit_rate": 43.56
+        },
+        "2期": {
+          "samples": 58,
+          "hits": 26,
+          "hit_rate": 44.827586206896555,
+          "adjusted_hit_rate": 44.16666666666667
+        },
+        "3～4期": {
+          "samples": 49,
+          "hits": 25,
+          "hit_rate": 51.02040816326531,
+          "adjusted_hit_rate": 48.47826086956522
+        },
+        "5～6期": {
+          "samples": 10,
+          "hits": 4,
+          "hit_rate": 40.0,
+          "adjusted_hit_rate": 41.5
+        },
+        "7期以上": {
+          "samples": 8,
+          "hits": 3,
+          "hit_rate": 37.5,
+          "adjusted_hit_rate": 40.89285714285714
+        }
+      },
+      "next_selection": [
+        7,
+        8,
+        9,
+        1,
+        10,
+        41,
+        39,
+        42,
+        4,
+        36,
+        2,
+        43,
+        15,
+        45,
+        6,
+        16,
+        46,
+        44,
+        49,
+        47
+      ],
+      "next_numbers": [
+        7,
+        8,
+        9,
+        1,
+        10,
+        41,
+        39,
+        42,
+        4,
+        36,
+        2,
+        43,
+        15,
+        45,
+        6,
+        16,
+        46,
+        44,
+        49,
+        47
+      ]
+    },
+    {
+      "model": "双目标数字TOP15",
+      "target": "数字",
+      "periods": 400,
+      "hit_rate": 38.75,
+      "recent_100_hit_rate": 38.0,
+      "recent_30_hit_rate": 40.0,
+      "average_coverage": 15.0,
+      "random_baseline": 30.612244897959183,
+      "edge_over_random": 8.137755102040817,
+      "roi": 21.416666666666668,
+      "recent_100_roi": 19.066666666666666,
+      "max_miss_streak": 7,
+      "current_miss_streak": 3,
+      "streak_bucket": "3～4期",
+      "conditional_samples": 55,
+      "conditional_hits": 19,
+      "conditional_hit_rate": 34.54545454545455,
+      "adjusted_conditional_hit_rate": 35.66666666666667,
+      "adjusted_conditional_roi": 11.755555555555569,
+      "streak_profile": {
+        "0期": {
+          "samples": 156,
+          "hits": 52,
+          "hit_rate": 33.33333333333333,
+          "adjusted_hit_rate": 33.94886363636363
+        },
+        "1期": {
+          "samples": 104,
+          "hits": 39,
+          "hit_rate": 37.5,
+          "adjusted_hit_rate": 37.70161290322581
+        },
+        "2期": {
+          "samples": 65,
+          "hits": 32,
+          "hit_rate": 49.23076923076923,
+          "adjusted_hit_rate": 46.76470588235294
+        },
+        "3～4期": {
+          "samples": 55,
+          "hits": 19,
+          "hit_rate": 34.54545454545455,
+          "adjusted_hit_rate": 35.66666666666667
+        },
+        "5～6期": {
+          "samples": 18,
+          "hits": 11,
+          "hit_rate": 61.111111111111114,
+          "adjusted_hit_rate": 49.34210526315789
+        },
+        "7期以上": {
+          "samples": 2,
+          "hits": 2,
+          "hit_rate": 100.0,
+          "adjusted_hit_rate": 44.31818181818182
+        }
+      },
+      "next_selection": [
+        2,
+        42,
+        6,
+        4,
+        23,
+        10,
+        47,
+        12,
+        17,
+        20,
+        34,
+        35,
+        38,
+        9,
+        28
+      ],
+      "next_numbers": [
+        2,
+        42,
+        6,
+        4,
+        23,
+        10,
+        47,
+        12,
+        17,
+        20,
+        34,
+        35,
+        38,
+        9,
+        28
+      ]
+    },
+    {
+      "model": "四大生肖",
+      "target": "生肖",
+      "periods": 400,
+      "hit_rate": 37.0,
+      "recent_100_hit_rate": 34.0,
+      "recent_30_hit_rate": 40.0,
+      "average_coverage": 4.0,
+      "random_baseline": 33.33333333333333,
+      "edge_over_random": 3.6666666666666714,
+      "roi": 8.6875,
+      "recent_100_roi": -0.125,
+      "max_miss_streak": 10,
+      "current_miss_streak": 2,
+      "streak_bucket": "2期",
+      "conditional_samples": 58,
+      "conditional_hits": 20,
+      "conditional_hit_rate": 34.48275862068966,
+      "adjusted_conditional_hit_rate": 35.128205128205124,
+      "adjusted_conditional_roi": 3.189102564102564,
+      "streak_profile": {
+        "0期": {
+          "samples": 149,
+          "hits": 56,
+          "hit_rate": 37.58389261744966,
+          "adjusted_hit_rate": 37.514792899408285
+        },
+        "1期": {
+          "samples": 93,
+          "hits": 34,
+          "hit_rate": 36.55913978494624,
+          "adjusted_hit_rate": 36.637168141592916
+        },
+        "2期": {
+          "samples": 58,
+          "hits": 20,
+          "hit_rate": 34.48275862068966,
+          "adjusted_hit_rate": 35.128205128205124
+        },
+        "3～4期": {
+          "samples": 64,
+          "hits": 19,
+          "hit_rate": 29.6875,
+          "adjusted_hit_rate": 31.428571428571427
+        },
+        "5～6期": {
+          "samples": 29,
+          "hits": 17,
+          "hit_rate": 58.620689655172406,
+          "adjusted_hit_rate": 49.795918367346935
+        },
+        "7期以上": {
+          "samples": 7,
+          "hits": 2,
+          "hit_rate": 28.57142857142857,
+          "adjusted_hit_rate": 34.81481481481482
+        }
+      },
+      "next_selection": [
+        "牛",
+        "鸡",
+        "猴",
+        "狗"
+      ],
+      "next_numbers": [
+        6,
+        9,
+        10,
+        11,
+        18,
+        21,
+        22,
+        23,
+        30,
+        33,
+        34,
+        35,
+        42,
+        45,
+        46,
+        47
+      ]
+    }
+  ]
+}

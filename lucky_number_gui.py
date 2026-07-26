@@ -72,7 +72,9 @@ class LuckyNumberGUI:
         
     def setup_ui(self):
         """设置用户界面"""
-        
+
+        self.setup_styles()
+
         # 创建主框架
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -81,23 +83,33 @@ class LuckyNumberGUI:
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_frame.rowconfigure(1, weight=1)
         
         # 1. 数据输入区域
         self.setup_data_input_section(main_frame)
         
-        # 2. 训练配置区域（已隐藏）
-        # self.setup_training_config_section(main_frame)
-        
-        # 3. 结果输出区域
-        self.setup_output_section(main_frame)
+        # 左侧为单列调用入口，右侧集中展示结果、日志和分析页。
+        workspace = ttk.Panedwindow(main_frame, orient=tk.HORIZONTAL)
+        workspace.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(5, 0))
 
-        # 5. 控制按钮区域
-        self.setup_control_buttons(main_frame)
-        
-        # 4. 预测区域
-        self.setup_prediction_section(main_frame)
-        
+        action_panel = ttk.Frame(workspace, width=280)
+        output_panel = ttk.Frame(workspace)
+        output_panel.columnconfigure(0, weight=1)
+        output_panel.rowconfigure(0, weight=1)
+        workspace.add(action_panel, weight=0)
+        workspace.add(output_panel, weight=1)
+
+        self.setup_prediction_section(action_panel)
+        self.setup_output_section(output_panel)
+        self.setup_control_buttons(output_panel)
+
+    def setup_styles(self):
+        """统一界面层级和按钮视觉样式。"""
+        style = ttk.Style(self.root)
+        style.configure("Action.TButton", padding=(10, 7), anchor=tk.W)
+        style.configure("Primary.Action.TButton", padding=(10, 8), anchor=tk.W)
+        style.configure("Section.TLabel", font=("", 9, "bold"), foreground="#334155")
+        style.configure("View.TButton", padding=(12, 6))
         
     def setup_data_input_section(self, parent):
         """设置数据输入区域"""
@@ -208,8 +220,8 @@ class LuckyNumberGUI:
     def setup_output_section(self, parent):
         """设置结果输出区域"""
         
-        output_frame = ttk.LabelFrame(parent, text="训练结果与可视化", padding="10")
-        output_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        output_frame = ttk.LabelFrame(parent, text="运行输出", padding="10")
+        output_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(8, 0))
         output_frame.columnconfigure(0, weight=1)
         output_frame.rowconfigure(0, weight=1)
         
@@ -217,12 +229,25 @@ class LuckyNumberGUI:
         self.notebook = ttk.Notebook(output_frame)
         self.notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # 文本输出标签页
-        text_frame = ttk.Frame(self.notebook)
-        self.notebook.add(text_frame, text="训练日志")
+        # 调用结果标签页
+        self.result_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.result_frame, text="调用结果")
+        self.result_text = scrolledtext.ScrolledText(
+            self.result_frame, wrap=tk.WORD, font=('Consolas', 10), padx=10, pady=10
+        )
+        self.result_text.pack(fill=tk.BOTH, expand=True)
+        self.result_text.insert(
+            '1.0',
+            '请从左侧选择一个预测或分析算法。\n\n'
+            '调用结果会显示在这里；运行过程、错误信息和详细记录可切换到“运行日志”查看。'
+        )
+
+        # 运行日志标签页
+        self.log_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.log_frame, text="运行日志")
         
         self.output_text = scrolledtext.ScrolledText(
-            text_frame, wrap=tk.WORD, width=80, height=12
+            self.log_frame, wrap=tk.WORD, width=80, height=12, font=('Consolas', 10)
         )
         self.output_text.pack(fill=tk.BOTH, expand=True)
 
@@ -257,10 +282,27 @@ class LuckyNumberGUI:
 
     def setup_prediction_section(self, parent):
         """设置预测区域"""
-        
-        pred_frame = ttk.LabelFrame(parent, text="幸运数字预测 - 混合策略模型", padding="10")
-        pred_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
-        pred_frame.columnconfigure(1, weight=1)
+
+        container = ttk.LabelFrame(parent, text="算法调用", padding=(8, 8))
+        container.pack(fill=tk.BOTH, expand=True)
+
+        canvas = tk.Canvas(container, width=265, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=canvas.yview)
+        pred_frame = ttk.Frame(canvas)
+        pred_window = canvas.create_window((0, 0), window=pred_frame, anchor=tk.NW)
+
+        def sync_scroll_region(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def sync_content_width(event):
+            canvas.itemconfigure(pred_window, width=event.width)
+
+        pred_frame.bind("<Configure>", sync_scroll_region)
+        canvas.bind("<Configure>", sync_content_width)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        pred_frame.columnconfigure(0, weight=1)
         '''
         # 说明文字
         info_label = ttk.Label(
@@ -588,7 +630,7 @@ class LuckyNumberGUI:
         self.top20_streak_button.grid(row=4, column=5, padx=5, pady=5)
 
         self.top15_dynamic_12_25_button = ttk.Button(
-            pred_frame, text="15个数字动态12/25 d", command=self.analyze_top15_dynamic_12_25,
+            pred_frame, text="🔄 15个数字动态12/25", command=self.analyze_top15_dynamic_12_25,
             state='normal', width=22
         )
         self.top15_dynamic_12_25_button.grid(row=4, column=6, padx=5, pady=5)
@@ -663,32 +705,287 @@ class LuckyNumberGUI:
         )
         self.top15_advanced_button.grid(row=7, column=1, padx=5, pady=5)
 
-        # 预测结果显示区域
-        result_frame = ttk.Frame(pred_frame)
-        result_frame.grid(row=8, column=0, columnspan=4, sticky=(tk.W, tk.E), padx=5, pady=10)
-        result_frame.columnconfigure(0, weight=1)
-        
-        self.result_text = scrolledtext.ScrolledText(
-            result_frame, wrap=tk.WORD, height=8, width=80, font=('Consolas', 10)
+        self.daily_best_button = ttk.Button(
+            pred_frame, text="⭐ 每日最优投注方案", command=self.analyze_daily_best_plan,
+            state='normal', width=22
         )
-        self.result_text.pack(fill=tk.BOTH, expand=True)
-        self.result_text.insert('1.0', '选择预测模型：\n\n🚀 固化混合策略 v1.0：\n- 策略A（全历史）+ 策略B（最近10期）\n- TOP5精准预测 + TOP15稳定覆盖\n- 历史验证成功率：50%\n\n⭐ 综合预测 Top 15：\n- 综合5种统计方法\n- 历史验证成功率：60%\n\n🎯 Top15生肖混合：\n- 统计模型 + 生肖预测综合\n- 历史验证成功率：46% (Top20)\n- 生肖权重优化，稳定可靠\n\n📊 Top15统计分布：\n- 泊松分布 + 正态分布 + 卡方检验 + t检验\n- 历史验证成功率：44% (Top20)\n- 基于概率论的科学模型\n\n🎯 集成预测 (推荐)：\n- 融合3个模型：加权投票+排名融合+概率叠加\n- 历史验证成功率：46% (Top20)\n- 多模型共识，提升可靠性 ⭐⭐')
+        self.daily_best_button.grid(row=8, column=0, padx=5, pady=5)
+
+        self.dual_top15_button = ttk.Button(
+            pred_frame, text="🧠 双目标TOP15 v1.0", command=self.analyze_dual_top15,
+            state='normal', width=22
+        )
+        self.dual_top15_button.grid(row=8, column=1, padx=5, pady=5)
+
+        self.fused_top20_button = ttk.Button(
+            pred_frame, text="🧩 双模型融合TOP20", command=self.analyze_fused_top20,
+            state='normal', width=22
+        )
+        self.fused_top20_button.grid(row=8, column=2, padx=5, pady=5)
+
+        self.independent_adaptive_top15_button = ttk.Button(
+            pred_frame, text="🧭 独立自适应TOP15",
+            command=self.analyze_independent_adaptive_top15,
+            state='normal', width=22
+        )
+        self.independent_adaptive_top15_button.grid(row=8, column=3, padx=5, pady=5)
+
+        # 旧界面按多列定位按钮；在所有入口创建完成后统一重排为单列。
+        self._arrange_action_buttons(pred_frame)
+
+    def _arrange_action_buttons(self, parent):
+        """按算法用途分组，并把所有可调用入口整理为单列。"""
+        for child in parent.winfo_children():
+            child.grid_forget()
+
+        groups = [
+            ("每日方案", [
+                "daily_best_button",
+            ]),
+            ("生肖策略", [
+                "zodiac_betting_button", "zodiac_top4_betting_button",
+                "ensemble_select_best_button", "zodiac_top4_v3_button",
+                "zodiac_top9_button", "zodiac_top10_button",
+                "distill_confidence_button", "distill_antimiss_button",
+            ]),
+            ("15个数字", [
+                "dual_top15_button",
+                "independent_adaptive_top15_button",
+                "top15_dynamic_12_25_button",
+                "optimal_smart_button",
+                "top15_streak_button",
+            ]),
+            ("数字与蒸馏模型", [
+                "fused_top20_button",
+                "distill_top15_button", "best_distilled_top15_button",
+                "betting_strategy_button", "precise_betting_button",
+                "probability_betting_button",
+                "optimal_top20_button", "distilled_top20_button",
+                "top15_advanced_button",
+            ]),
+            ("监测与对比", [
+                "compare_strategies_button",
+                "top20_streak_button", "multi_strategy_zodiac_button",
+                "top15_detail_button", "delayed_fib_button",
+                "quant_button",
+            ]),
+            ("尾数分析", [
+                "tail_digit_button", "tail_top3_button", "tail_grid_button",
+            ]),
+        ]
+
+        row = 0
+        for title, names in groups:
+            ttk.Label(parent, text=title, style="Section.TLabel").grid(
+                row=row, column=0, sticky=tk.W, padx=4, pady=(10 if row else 2, 4)
+            )
+            row += 1
+            for name in names:
+                button = getattr(self, name)
+                button.configure(style="Action.TButton")
+                button.grid(row=row, column=0, sticky=(tk.W, tk.E), padx=3, pady=2)
+                row += 1
         
     def setup_control_buttons(self, parent):
         """设置控制按钮区域"""
         
         button_frame = ttk.Frame(parent)
-        button_frame.grid(row=4, column=0, pady=10)
+        button_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=(8, 0), pady=(8, 0))
+
+        ttk.Button(
+            button_frame, text="查看调用结果", command=lambda: self.show_output_tab("result"),
+            style="View.TButton"
+        ).grid(row=0, column=0, padx=(0, 5))
+
+        ttk.Button(
+            button_frame, text="查看运行日志", command=lambda: self.show_output_tab("log"),
+            style="View.TButton"
+        ).grid(row=0, column=1, padx=5)
         
         # 清空输出按钮
         ttk.Button(
             button_frame, text="🗑️ 清空日志", command=self.clear_output, width=15
-        ).grid(row=0, column=0, padx=5)
+        ).grid(row=0, column=2, padx=5)
         
         # 保存日志按钮
         ttk.Button(
             button_frame, text="💾 保存日志", command=self.save_log, width=15
-        ).grid(row=0, column=1, padx=5)
+        ).grid(row=0, column=3, padx=5)
+
+    def show_output_tab(self, view):
+        """在调用结果和运行日志之间快速切换。"""
+        target = self.result_frame if view == "result" else self.log_frame
+        self.notebook.select(target)
+
+    def analyze_daily_best_plan(self):
+        """比较现有核心模型并生成下一期动态择优方案。"""
+        threading.Thread(target=self._run_daily_best_plan, daemon=True).start()
+
+    def analyze_dual_top15(self):
+        """运行双目标TOP15推理和独立验证。"""
+        threading.Thread(target=self._run_dual_top15, daemon=True).start()
+
+    def analyze_fused_top20(self):
+        """运行双目标与动态12/25的固定20号码融合预测。"""
+        threading.Thread(target=self._run_fused_top20, daemon=True).start()
+
+    def analyze_independent_adaptive_top15(self):
+        """运行完全不依赖双目标的分状态在线专家TOP15。"""
+        threading.Thread(
+            target=self._run_independent_adaptive_top15, daemon=True
+        ).start()
+
+    def _run_independent_adaptive_top15(self):
+        try:
+            from independent_adaptive_top15_predictor import (
+                build_independent_adaptive_report,
+                format_independent_adaptive_report,
+                format_independent_walk_forward_details,
+                save_independent_adaptive_outputs,
+            )
+
+            file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
+            report = build_independent_adaptive_report(file_path)
+            report_text = format_independent_adaptive_report(report)
+            detail_log = format_independent_walk_forward_details(
+                report["records"]
+            )
+            output_paths = save_independent_adaptive_outputs(
+                report, "预测结果"
+            )
+
+            def publish():
+                self.result_text.delete("1.0", tk.END)
+                self.result_text.insert("1.0", report_text)
+                self.notebook.select(self.result_frame)
+                self.log_output(
+                    f"\n✅ 独立自适应TOP15已生成：{report['prediction_date']}\n"
+                    f"   模式：{report['next_prediction']['mode']}\n"
+                    f"   TOP15：{report['next_prediction']['top15']}\n"
+                    f"   400期命中率：{report['overall']['hit_rate']:.2f}%\n"
+                    f"   最长连续不中："
+                    f"{report['overall']['max_miss_streak']}期\n"
+                    f"   输出文件：{output_paths[0]}\n"
+                )
+                self.log_output(detail_log + "\n")
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                messagebox.showerror("独立自适应TOP15生成失败", str(error))
+                self.log_output(f"\n❌ 独立自适应TOP15生成失败：{error}\n")
+
+            self.root.after(0, publish_error)
+
+    def _run_fused_top20(self):
+        try:
+            from fused_top20_predictor import (
+                build_fused_top20_report,
+                format_fused_top20_report,
+                save_fused_top20_outputs,
+            )
+
+            file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
+            report = build_fused_top20_report(file_path)
+            report_text = format_fused_top20_report(report)
+            output_paths = save_fused_top20_outputs(report, "预测结果")
+
+            def publish():
+                self.result_text.delete("1.0", tk.END)
+                self.result_text.insert("1.0", report_text)
+                self.notebook.select(self.result_frame)
+                self.log_output(
+                    f"\n✅ 双模型融合TOP20已生成：{report['prediction_date']}\n"
+                    f"   TOP20：{report['next_prediction']['top20']}\n"
+                    f"   400期命中率：{report['overall']['hit_rate']:.2f}%\n"
+                    f"   最长连续不中：{report['overall']['max_miss_streak']}期\n"
+                    f"   输出文件：{output_paths[0]}\n"
+                )
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                messagebox.showerror("融合TOP20生成失败", str(error))
+                self.log_output(f"\n❌ 融合TOP20生成失败：{error}\n")
+
+            self.root.after(0, publish_error)
+
+    def _run_dual_top15(self):
+        try:
+            from dual_objective_top15_predictor import (
+                build_validation_report,
+                format_report,
+                format_walk_forward_details,
+                save_report,
+            )
+
+            file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
+            report = build_validation_report(file_path)
+            report_text = format_report(report)
+            detail_log = format_walk_forward_details(report["records"])
+            output_paths = save_report(report, "预测结果")
+
+            def publish():
+                self.result_text.delete("1.0", tk.END)
+                self.result_text.insert("1.0", report_text)
+                self.notebook.select(self.result_frame)
+                self.log_output(
+                    f"\n✅ 双目标TOP15预测已生成：{report['prediction_date']}\n"
+                    f"   模式：{report['next_prediction']['mode']}\n"
+                    f"   TOP15：{report['next_prediction']['top15']}\n"
+                    f"   输出文件：{output_paths[0]}\n"
+                )
+                self.log_output(detail_log + "\n")
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                messagebox.showerror("双目标TOP15生成失败", str(error))
+                self.log_output(f"\n❌ 双目标TOP15生成失败：{error}\n")
+
+            self.root.after(0, publish_error)
+
+    def _run_daily_best_plan(self):
+        try:
+            from daily_betting_optimizer import build_daily_plan, format_plan, save_outputs
+
+            file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
+            plan = build_daily_plan(file_path)
+            report = format_plan(plan)
+            output_paths = save_outputs(plan, "预测结果")
+
+            benchmark_lines = [
+                "\n\n模型统一回测（按当前状态校正命中率排序）",
+                "-" * 72,
+                f"{'模型':<18} {'当前未中':>8} {'状态样本':>9} {'条件率':>9} {'校正率':>9}",
+            ]
+            for item in plan["benchmarks"]:
+                benchmark_lines.append(
+                    f"{item['model']:<18} "
+                    f"{item['current_miss_streak']:>7}期 "
+                    f"{item['conditional_samples']:>9} "
+                    f"{item['conditional_hit_rate']:>8.2f}% "
+                    f"{item['adjusted_conditional_hit_rate']:>8.2f}%"
+                )
+            full_report = report + "\n".join(benchmark_lines)
+
+            def publish():
+                self.result_text.delete("1.0", tk.END)
+                self.result_text.insert("1.0", full_report)
+                self.notebook.select(self.result_frame)
+                self.log_output(
+                    f"\n✅ 每日最优方案已生成：{plan['plan_date']}\n"
+                    f"   选择模型：{plan['selected_model'] or '空仓'}\n"
+                    f"   输出文件：{output_paths[0]}\n"
+                )
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                messagebox.showerror("每日方案生成失败", str(error))
+                self.log_output(f"\n❌ 每日最优方案生成失败：{error}\n")
+
+            self.root.after(0, publish_error)
         
     def browse_file(self):
         """浏览并选择数据文件"""
@@ -4618,7 +4915,7 @@ class LuckyNumberGUI:
             result = run_top15_dynamic_12_25(df['number'].astype(int).tolist())
 
             self.log_output(f"\n{'=' * 95}\n")
-            self.log_output(f"15个数字动态12/25 d｜最近{result['test_periods']}期滚动回测\n")
+            self.log_output(f"15个数字动态12/25｜最近{result['test_periods']}期滚动回测\n")
             self.log_output("动态规则：连续未中少于3期使用最近12期；达到3期后使用最近25期；命中后恢复12期。\n")
             self.log_output("状态规则：单个预测器逐期更新最近预测表现，固定覆盖15个号码。\n")
             self.log_output(
@@ -4640,7 +4937,7 @@ class LuckyNumberGUI:
             self.result_text.delete('1.0', tk.END)
             self.result_text.insert(
                 '1.0',
-                "15个数字动态12/25 d\n\n"
+                "15个数字动态12/25\n\n"
                 f"最近{result['test_periods']}期命中率：{result['hit_rate'] * 100:.1f}%"
                 f"（{result['hits']}/{result['test_periods']}）\n"
                 f"最长连续未中：{result['max_miss_streak']}期\n"
@@ -4649,7 +4946,7 @@ class LuckyNumberGUI:
                 f"下一期TOP15：{result['next_prediction']}"
             )
         except Exception as error:
-            self.log_output(f"\n15个数字动态12/25 d分析失败：{error}\n")
+            self.log_output(f"\n15个数字动态12/25分析失败：{error}\n")
             import traceback
             self.log_output(traceback.format_exc())
 
