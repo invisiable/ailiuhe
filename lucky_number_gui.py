@@ -586,6 +586,12 @@ class LuckyNumberGUI:
             state='normal', width=22
         )
         self.top20_streak_button.grid(row=4, column=5, padx=5, pady=5)
+
+        self.top15_dynamic_12_25_button = ttk.Button(
+            pred_frame, text="15个数字动态12/25 d", command=self.analyze_top15_dynamic_12_25,
+            state='normal', width=22
+        )
+        self.top15_dynamic_12_25_button.grid(row=4, column=6, padx=5, pady=5)
         
         # 第三行：多策略对比
         # TOP5多策略投注按钮（新增）
@@ -4596,6 +4602,56 @@ class LuckyNumberGUI:
         """Run a fixed TOP20 longest-miss audit without changing the predictor."""
         import threading
         threading.Thread(target=self._run_number_streak_control, args=(20,), daemon=True).start()
+
+    def analyze_top15_dynamic_12_25(self):
+        """Run the stateful TOP15 strategy with dynamic 12/25-draw windows."""
+        import threading
+        threading.Thread(target=self._run_top15_dynamic_12_25, daemon=True).start()
+
+    def _run_top15_dynamic_12_25(self):
+        """Display the mini-program-compatible dynamic TOP15 walk-forward audit."""
+        try:
+            from top15_dynamic_12_25 import run_top15_dynamic_12_25
+
+            file_path = self.file_path_var.get() if self.file_path_var.get() else 'data/lucky_numbers.csv'
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_top15_dynamic_12_25(df['number'].astype(int).tolist())
+
+            self.log_output(f"\n{'=' * 95}\n")
+            self.log_output(f"15个数字动态12/25 d｜最近{result['test_periods']}期滚动回测\n")
+            self.log_output("动态规则：连续未中少于3期使用最近12期；达到3期后使用最近25期；命中后恢复12期。\n")
+            self.log_output("状态规则：单个预测器逐期更新最近预测表现，固定覆盖15个号码。\n")
+            self.log_output(
+                f"命中：{result['hits']}/{result['test_periods']} = {result['hit_rate'] * 100:.1f}%｜"
+                f"最长连续未中：{result['max_miss_streak']}期｜"
+                f"当前连续未中：{result['current_miss_streak']}期\n"
+            )
+            self.log_output(f"{'日期':>12} {'实际':>4} {'窗口':>5} {'结果':>5} {'连未中':>7} 预测号码\n")
+            self.log_output("-" * 95 + "\n")
+            for row in result['rows']:
+                date_value = str(df.iloc[row['index']]['date'])
+                status = "命中" if row['hit'] else "未中"
+                self.log_output(
+                    f"{date_value:>12} {row['actual']:>4} {row['window']:>5} "
+                    f"{status:>5} {row['miss_streak']:>7} {row['prediction']}\n"
+                )
+            self.log_output(f"\n下一期动态TOP15（最近{result['window']}期）：{result['next_prediction']}\n")
+
+            self.result_text.delete('1.0', tk.END)
+            self.result_text.insert(
+                '1.0',
+                "15个数字动态12/25 d\n\n"
+                f"最近{result['test_periods']}期命中率：{result['hit_rate'] * 100:.1f}%"
+                f"（{result['hits']}/{result['test_periods']}）\n"
+                f"最长连续未中：{result['max_miss_streak']}期\n"
+                f"当前连续未中：{result['current_miss_streak']}期\n"
+                f"当前窗口：最近{result['window']}期\n"
+                f"下一期TOP15：{result['next_prediction']}"
+            )
+        except Exception as error:
+            self.log_output(f"\n15个数字动态12/25 d分析失败：{error}\n")
+            import traceback
+            self.log_output(traceback.format_exc())
 
     def _run_number_streak_control(self, top_n):
         """Display the latest 400 walk-forward predictions and miss streaks."""
