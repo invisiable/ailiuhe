@@ -25,7 +25,7 @@ from probability_betting_strategy import ProbabilityBettingStrategy, validate_pr
 from zodiac_top4_v3_predictor import ZodiacTop4V3Predictor, NUM_TO_ZODIAC_2026, ZODIAC_NUMS_2026  # 生肖TOP4 v3预测器
 from zodiac_top9_predictor import ZodiacTop9Predictor  # 生肖TOP9预测器(85%命中率)
 from zodiac_top10_predictor import ZodiacTop10Predictor  # 生肖TOP10预测器
-from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor  # 蒸馏TOP4置信度分层(53.3%)
+from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor  # 蒸馏TOP4置信度分层
 from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor  # 蒸馏TOP4反miss(52.3%)
 from distill_top15_predictor import DistillTop15Predictor  # 蒸馏TOP15(TOP9生肖过滤×Top15号码模型)
 from distilled_top15_predictor import DistilledTop15Predictor  # 最佳蒸馏TOP15(反模式+PreciseTop15, 36.25%命中, 最大连败9期)
@@ -513,7 +513,7 @@ class LuckyNumberGUI:
         
         # 生肖投注策略按钮
         self.zodiac_betting_button = ttk.Button(
-            pred_frame, text="🐉 生肖TOP5投注", command=self.analyze_zodiac_betting,
+            pred_frame, text="生肖TOP5预测", command=self.analyze_zodiac_betting,
             state='normal', width=25
         )
         self.zodiac_betting_button.grid(row=3, column=0, padx=5, pady=5)
@@ -559,8 +559,19 @@ class LuckyNumberGUI:
             state='normal', width=20
         )
         self.zodiac_top10_button.grid(row=5, column=4, padx=5, pady=5)
+
+        self.top5_top10_balanced19_button = ttk.Button(
+            pred_frame,
+            text="TOP5+TOP10精简18",
+            command=self.analyze_top5_top10_balanced19,
+            state='normal',
+            width=20,
+        )
+        self.top5_top10_balanced19_button.grid(
+            row=5, column=5, padx=5, pady=5
+        )
         
-        # 蒸馏TOP4 置信度分层按钮(53.3%命中率)
+        # 蒸馏TOP4置信度分层按钮
         self.distill_confidence_button = ttk.Button(
             pred_frame, text="🔬 蒸馏TOP4置信度", command=self.analyze_distill_confidence,
             state='normal', width=20
@@ -629,11 +640,38 @@ class LuckyNumberGUI:
         )
         self.top20_streak_button.grid(row=4, column=5, padx=5, pady=5)
 
+        self.top20_zodiac_filter_button = ttk.Button(
+            pred_frame, text="20数字+生肖TOP10排除",
+            command=self.analyze_top20_zodiac_filter,
+            state='normal', width=22
+        )
+        self.top20_zodiac_filter_button.grid(row=4, column=8, padx=5, pady=5)
+
+        self.top20_top5_union_button = ttk.Button(
+            pred_frame, text="20数字+生肖TOP5并集",
+            command=self.analyze_top20_top5_union,
+            state='normal', width=22
+        )
+        self.top20_top5_union_button.grid(row=4, column=10, padx=5, pady=5)
+
         self.top15_dynamic_12_25_button = ttk.Button(
             pred_frame, text="🔄 15个数字动态12/25", command=self.analyze_top15_dynamic_12_25,
             state='normal', width=22
         )
         self.top15_dynamic_12_25_button.grid(row=4, column=6, padx=5, pady=5)
+
+        self.top15_union_button = ttk.Button(
+            pred_frame, text="🔗 15数字并集回测", command=self.analyze_top15_union_backtest,
+            state='normal', width=22
+        )
+        self.top15_union_button.grid(row=4, column=7, padx=5, pady=5)
+
+        self.top15_top4_union_button = ttk.Button(
+            pred_frame, text="动态15+蒸馏TOP4并集",
+            command=self.analyze_top15_top4_union,
+            state='normal', width=22
+        )
+        self.top15_top4_union_button.grid(row=4, column=9, padx=5, pady=5)
         
         # 第三行：多策略对比
         # TOP5多策略投注按钮（新增）
@@ -730,6 +768,13 @@ class LuckyNumberGUI:
         )
         self.independent_adaptive_top15_button.grid(row=8, column=3, padx=5, pady=5)
 
+        self.risk_first_top18_button = ttk.Button(
+            pred_frame, text="风险优先固定18",
+            command=self.analyze_risk_first_top18,
+            state='normal', width=22
+        )
+        self.risk_first_top18_button.grid(row=9, column=0, padx=5, pady=5)
+
         # 旧界面按多列定位按钮；在所有入口创建完成后统一重排为单列。
         self._arrange_action_buttons(pred_frame)
 
@@ -746,12 +791,16 @@ class LuckyNumberGUI:
                 "zodiac_betting_button", "zodiac_top4_betting_button",
                 "ensemble_select_best_button", "zodiac_top4_v3_button",
                 "zodiac_top9_button", "zodiac_top10_button",
+                "top5_top10_balanced19_button",
                 "distill_confidence_button", "distill_antimiss_button",
             ]),
-            ("15个数字", [
+            ("15-18个数字", [
                 "dual_top15_button",
                 "independent_adaptive_top15_button",
+                "risk_first_top18_button",
                 "top15_dynamic_12_25_button",
+                "top15_union_button",
+                "top15_top4_union_button",
                 "optimal_smart_button",
                 "top15_streak_button",
             ]),
@@ -765,7 +814,9 @@ class LuckyNumberGUI:
             ]),
             ("监测与对比", [
                 "compare_strategies_button",
-                "top20_streak_button", "multi_strategy_zodiac_button",
+                "top20_streak_button", "top20_zodiac_filter_button",
+                "top20_top5_union_button",
+                "multi_strategy_zodiac_button",
                 "top15_detail_button", "delayed_fib_button",
                 "quant_button",
             ]),
@@ -827,13 +878,230 @@ class LuckyNumberGUI:
 
     def analyze_fused_top20(self):
         """运行双目标与动态12/25的固定20号码融合预测。"""
-        threading.Thread(target=self._run_fused_top20, daemon=True).start()
+        file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
+        self.fused_top20_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_fused_top20,
+            args=(file_path,),
+            daemon=True,
+        ).start()
 
     def analyze_independent_adaptive_top15(self):
         """运行完全不依赖双目标的分状态在线专家TOP15。"""
         threading.Thread(
             target=self._run_independent_adaptive_top15, daemon=True
         ).start()
+
+    def analyze_risk_first_top18(self):
+        """运行固定18号风险优先模型的400期审计。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.risk_first_top18_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_risk_first_top18,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def analyze_top5_top10_balanced19(self):
+        """运行TOP5候选池与TOP10共识评分的精简18号审计。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top5_top10_balanced19_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top5_top10_balanced19,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_top5_top10_balanced19(self, file_path):
+        try:
+            from top5_top10_balanced19 import (
+                run_top5_top10_balanced19_audit,
+            )
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = run_top5_top10_balanced19_audit(
+                df,
+                test_periods=400,
+                target_count=18,
+            )
+            reduced = report['reduced']
+            full = report['full_top5']
+            longest_lines = []
+            for sequence, streak in enumerate(
+                reduced['longest_miss_streaks'], start=1
+            ):
+                longest_lines.append(
+                    f"  第{sequence}段："
+                    f"{df.iloc[streak['start_index']]['date']} 至 "
+                    f"{df.iloc[streak['end_index']]['date']}｜"
+                    f"连续{streak['length']}期\n"
+                )
+            longest_text = ''.join(longest_lines) or '  无连续不中区间\n'
+            segments = '｜'.join(
+                f"第{index + 1}个100期 {hits}/100"
+                for index, hits in enumerate(reduced['segments_100'])
+            )
+            log_lines = [
+                f"\n{'=' * 120}\n",
+                "TOP5+TOP10精简18｜最近400期逐期无前视回测\n",
+                "规则：TOP5限定候选生肖池；数字评分50% + TOP10生肖共识50%；"
+                "按目标日期切换蛇年/马年号码映射；固定18号。\n",
+                f"精简18：{reduced['hits']}/400 = "
+                f"{reduced['hit_rate'] * 100:.2f}%｜"
+                f"最长连续不中{reduced['max_miss_streak']}期｜"
+                f"平均{reduced['average_count']:.2f}号\n",
+                f"完整TOP5：{full['hits']}/400 = "
+                f"{full['hit_rate'] * 100:.2f}%｜"
+                f"最长连续不中{full['max_miss_streak']}期｜"
+                f"平均{full['average_count']:.2f}号\n",
+                f"每100期：{segments}\n",
+                "最长连续不中区间：\n",
+                longest_text,
+                '-' * 120 + '\n',
+            ]
+            for period, row in enumerate(report['rows'], start=1):
+                status = '命中' if row['hit'] else '未中'
+                log_lines.append(
+                    f"{period:03d} {row['date']}｜"
+                    f"实际={row['actual_number']}({row['actual_animal']})｜"
+                    f"预测18={row['prediction']}｜{status}｜"
+                    f"TOP5={row['top5']}｜TOP10={row['top10']}｜"
+                    f"完整池={row['full_top5_count']}号\n"
+                )
+
+            summary = (
+                "TOP5+TOP10精简18\n\n"
+                f"精简18：{reduced['hits']}/400 = "
+                f"{reduced['hit_rate'] * 100:.2f}%\n"
+                f"最长连续不中：{reduced['max_miss_streak']}期\n"
+                f"平均覆盖：{reduced['average_count']:.2f}号\n\n"
+                f"完整TOP5：{full['hits']}/400 = "
+                f"{full['hit_rate'] * 100:.2f}%\n"
+                f"最长连续不中：{full['max_miss_streak']}期\n"
+                f"平均覆盖：{full['average_count']:.2f}号\n\n"
+                f"每100期：{segments}\n"
+                f"最长区间：\n{longest_text}\n"
+                f"下一期日期：{report['next_target_date']}\n"
+                f"下一期18号：{report['next_prediction']}\n"
+                f"TOP5：{report['next_top5']}\n"
+                f"TOP10：{report['next_top10']}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.top5_top10_balanced19_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(
+                    f"\nTOP5+TOP10精简18运行失败：{error}\n{error_detail}"
+                )
+                self.top5_top10_balanced19_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def _run_risk_first_top18(self, file_path):
+        try:
+            from fixed_dual_source_top18_audit import (
+                run_fixed_dual_source_top18_audit,
+            )
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = run_fixed_dual_source_top18_audit(df, test_periods=400)
+            model = report['model']
+            baseline = report['baseline']
+
+            longest_lines = []
+            for sequence, streak in enumerate(
+                model['longest_miss_streaks'], start=1
+            ):
+                longest_lines.append(
+                    f"  第{sequence}段："
+                    f"{df.iloc[streak['start_index']]['date']} 至 "
+                    f"{df.iloc[streak['end_index']]['date']}｜"
+                    f"连续{streak['length']}期\n"
+                )
+            longest_text = ''.join(longest_lines) or '  无连续不中区间\n'
+            segment_text = '｜'.join(
+                f"{segment['start_period']}-{segment['end_period']}期 "
+                f"{segment['hits']}/{segment['periods']}"
+                for segment in model['segments_50']
+            )
+            distribution_text = '｜'.join(
+                f"{length}期×{count}次"
+                for length, count in model['miss_streak_distribution'].items()
+            ) or '无'
+
+            log_lines = [
+                f"\n{'=' * 120}\n",
+                "风险优先固定18｜最近400期逐期无前视回测\n",
+                "规则：双目标数字评分固定取18号；连续不中5期后切换近100期冷号评分；"
+                "生肖TOP5仅监测，不替换号码。\n",
+                f"模型：{model['hits']}/400 = {model['hit_rate'] * 100:.2f}%｜"
+                f"最长连续不中{model['max_miss_streak']}期｜"
+                f"当前连续不中{model['current_miss_streak']}期\n",
+                f"固定15对照：{baseline['hits']}/400 = "
+                f"{baseline['hit_rate'] * 100:.2f}%｜"
+                f"最长连续不中{baseline['max_miss_streak']}期\n",
+                f"前200期：{model['first_200_hits']}/200｜"
+                f"后200期：{model['last_200_hits']}/200\n",
+                f"每50期：{segment_text}\n",
+                f"连续不中分布：{distribution_text}\n",
+                "最长连续不中区间：\n",
+                longest_text,
+                '-' * 120 + '\n',
+            ]
+            for period, row in enumerate(report['rows'], start=1):
+                status = '命中' if row['hit'] else '未中'
+                log_lines.append(
+                    f"{period:03d} {row['date']}｜"
+                    f"实际={row['actual_number']}({row['actual_animal']})｜"
+                    f"预测={row['prediction']}｜{status}｜"
+                    f"连不中={row['miss_streak']}期｜模式={row['mode']}｜"
+                    f"生肖监测={row['zodiac_top5']}\n"
+                )
+
+            summary = (
+                "风险优先固定18\n\n"
+                f"最近400期：{model['hits']}/400 = "
+                f"{model['hit_rate'] * 100:.2f}%\n"
+                f"最长连续不中：{model['max_miss_streak']}期\n"
+                f"当前连续不中：{model['current_miss_streak']}期\n"
+                f"固定15对照：{baseline['hits']}/400，最长"
+                f"{baseline['max_miss_streak']}期\n"
+                f"每50期：{segment_text}\n\n"
+                f"最长连续不中区间：\n{longest_text}\n"
+                f"下一期18号：{report['next_prediction']}\n"
+                f"下一期模式：{report['next_mode']}\n"
+                f"生肖TOP5监测：{report['next_zodiac_top5']}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.risk_first_top18_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(
+                    f"\n风险优先固定18运行失败：{error}\n{error_detail}"
+                )
+                self.risk_first_top18_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
 
     def _run_independent_adaptive_top15(self):
         try:
@@ -877,17 +1145,18 @@ class LuckyNumberGUI:
 
             self.root.after(0, publish_error)
 
-    def _run_fused_top20(self):
+    def _run_fused_top20(self, file_path):
         try:
             from fused_top20_predictor import (
                 build_fused_top20_report,
+                format_fused_top20_details,
                 format_fused_top20_report,
                 save_fused_top20_outputs,
             )
 
-            file_path = self.file_path_var.get() or "data/lucky_numbers.csv"
             report = build_fused_top20_report(file_path)
             report_text = format_fused_top20_report(report)
+            detail_log = format_fused_top20_details(report)
             output_paths = save_fused_top20_outputs(report, "预测结果")
 
             def publish():
@@ -901,12 +1170,15 @@ class LuckyNumberGUI:
                     f"   最长连续不中：{report['overall']['max_miss_streak']}期\n"
                     f"   输出文件：{output_paths[0]}\n"
                 )
+                self.log_output(detail_log + "\n")
+                self.fused_top20_button.configure(state='normal')
 
             self.root.after(0, publish)
         except Exception as error:
             def publish_error(error=error):
                 messagebox.showerror("融合TOP20生成失败", str(error))
                 self.log_output(f"\n❌ 融合TOP20生成失败：{error}\n")
+                self.fused_top20_button.configure(state='normal')
 
             self.root.after(0, publish_error)
 
@@ -4900,10 +5172,556 @@ class LuckyNumberGUI:
         import threading
         threading.Thread(target=self._run_number_streak_control, args=(20,), daemon=True).start()
 
+    def analyze_top20_top5_union(self):
+        """Run the TOP20 monitoring and Zodiac v10 TOP5 number union audit."""
+        import threading
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top20_top5_union_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top20_top5_union,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_top20_top5_union(self, file_path):
+        """Display the latest 400 TOP20 plus Zodiac TOP5 union predictions."""
+        try:
+            from top20_zodiac_top5_union import run_top20_zodiac_top5_union
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_top20_zodiac_top5_union(
+                df['number'].astype(int).tolist(),
+                df['animal'].astype(str).tolist(),
+                test_periods=400,
+            )
+            periods = result['test_periods']
+            distribution_text = "｜".join(
+                f"连续不中{length}期：{count}次"
+                for length, count in result['miss_streak_distribution'].items()
+            ) or "无连续不中"
+
+            longest_lines = []
+            for sequence, streak in enumerate(result['longest_miss_streaks'], start=1):
+                start_date = str(df.iloc[streak['start_index']]['date'])
+                end_date = str(df.iloc[streak['end_index']]['date'])
+                actuals = [
+                    int(df.iloc[index]['number'])
+                    for index in range(streak['start_index'], streak['end_index'] + 1)
+                ]
+                longest_lines.append(
+                    f"  第{sequence}段：{start_date} 至 {end_date}｜"
+                    f"连续{streak['length']}期｜开奖号码={actuals}\n"
+                )
+            longest_text = ''.join(longest_lines) or "  无连续不中区间\n"
+
+            log_lines = [
+                f"\n{'=' * 115}\n",
+                f"20数字连不中监测 + 生肖TOP5投注模型数字并集｜最近{periods}期\n",
+                "TOP20：双周期6/25期完整排名融合；生肖：v10简化智能选择器TOP5。\n",
+                "映射：严格使用生肖TOP5投注模型自身的生肖号码表，再与TOP20保序去重。\n",
+                f"TOP20：{result['top20_hits']}/{periods} = "
+                f"{result['top20_hit_rate'] * 100:.2f}%｜"
+                f"生肖TOP5：{result['zodiac_animal_hits']}/{periods} = "
+                f"{result['zodiac_animal_hit_rate'] * 100:.2f}%\n",
+                f"TOP5展开号码：{result['zodiac_number_hits']}/{periods} = "
+                f"{result['zodiac_number_hit_rate'] * 100:.2f}%｜"
+                f"并集：{result['union_hits']}/{periods} = "
+                f"{result['union_hit_rate'] * 100:.2f}%｜"
+                f"生肖号码独立补中：{result['zodiac_only_hits']}次\n",
+                f"并集平均{result['average_union_count']:.2f}个/期｜"
+                f"范围{result['min_union_count']}~{result['max_union_count']}个｜"
+                f"平均新增{result['average_added_count']:.2f}个/期\n",
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"连续不中分布：{distribution_text}\n",
+                "最长连续不中区间：\n",
+                longest_text,
+                "-" * 115 + "\n",
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                date_value = str(df.iloc[row['index']]['date'])
+                top20_status = "命中" if row['top20_hit'] else "未中"
+                zodiac_status = "命中" if row['zodiac_animal_hit'] else "未中"
+                union_status = "命中" if row['union_hit'] else "未中"
+                log_lines.append(
+                    f"{period:03d} {date_value} 开奖={row['actual']}({row['actual_animal']})｜"
+                    f"TOP20={top20_status}｜生肖TOP5={zodiac_status}｜"
+                    f"并集={union_status}｜连未中={row['union_miss_streak']}期｜"
+                    f"并集{row['union_count']}个（+{row['added_count']}）\n"
+                )
+                log_lines.append(f"  TOP20：{row['top20_prediction']}\n")
+                log_lines.append(
+                    f"  生肖TOP5：{row['top5_zodiacs']}｜模型={row['selected_model']}｜"
+                    f"展开号码命中={'是' if row['zodiac_number_hit'] else '否'}\n"
+                    f"  TOP5号码：{row['zodiac_numbers']}\n"
+                    f"  并集：{row['union_prediction']}\n"
+                )
+
+            next_union = result['next_union_prediction']
+            log_lines.append(
+                f"\n下一期TOP20：{result['next_top20_prediction']}\n"
+                f"下一期生肖TOP5：{result['next_top5_zodiacs']}｜"
+                f"模型={result['next_selected_model']}\n"
+                f"下一期TOP5号码：{result['next_zodiac_numbers']}\n"
+                f"下一期并集（{len(next_union)}个，增加{result['next_added_count']}个）："
+                f"{next_union}\n"
+            )
+
+            summary = (
+                "20数字 + 生肖TOP5投注模型数字并集\n\n"
+                f"最近{periods}期\n"
+                f"TOP20成功率：{result['top20_hit_rate'] * 100:.2f}%"
+                f"（{result['top20_hits']}/{periods}）\n"
+                f"生肖TOP5成功率：{result['zodiac_animal_hit_rate'] * 100:.2f}%"
+                f"（{result['zodiac_animal_hits']}/{periods}）\n"
+                f"TOP5展开号码成功率：{result['zodiac_number_hit_rate'] * 100:.2f}%"
+                f"（{result['zodiac_number_hits']}/{periods}）\n"
+                f"并集成功率：{result['union_hit_rate'] * 100:.2f}%"
+                f"（{result['union_hits']}/{periods}）\n"
+                f"生肖号码独立补中：{result['zodiac_only_hits']}次\n"
+                f"并集平均：{result['average_union_count']:.2f}个/期"
+                f"（范围{result['min_union_count']}~{result['max_union_count']}）\n"
+                f"平均新增：{result['average_added_count']:.2f}个/期\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：{distribution_text}\n\n"
+                "最长连续不中区间：\n"
+                f"{longest_text}\n"
+                f"下一期生肖TOP5：{result['next_top5_zodiacs']}\n"
+                f"下一期并集（{len(next_union)}个）：\n{next_union}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.top20_top5_union_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(f"\n20数字+生肖TOP5并集回测失败：{error}\n{error_detail}")
+                self.top20_top5_union_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def analyze_top20_zodiac_filter(self):
+        """Run TOP20 monitoring after Zodiac TOP10/TOP11 exclusion."""
+        import threading
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top20_zodiac_filter_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top20_zodiac_filter,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_top20_zodiac_filter(self, file_path):
+        """Display the TOP20 plus Zodiac TOP10 exclusion walk-forward audit."""
+        try:
+            from top20_zodiac_filter_backtest import run_top20_zodiac_filter_backtest
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_top20_zodiac_filter_backtest(
+                df['number'].astype(int).tolist(), test_periods=400
+            )
+            periods = result['test_periods']
+            distribution_text = "｜".join(
+                f"连续不中{length}期：{count}次"
+                for length, count in result['miss_streak_distribution'].items()
+            ) or "无连续不中"
+
+            log_lines = [
+                f"\n{'=' * 105}\n",
+                f"TOP20 + 生肖TOP10排除｜最近{periods}期滚动回测\n",
+                "规则：原TOP20按生肖TOP10过滤；生肖连续miss达到3期时扩展TOP11。\n",
+                "映射：全部历史号码统一按2026马年生肖映射重标。\n",
+                f"原TOP20：{result['original_hits']}/{periods} = "
+                f"{result['original_hit_rate'] * 100:.2f}%\n",
+                f"过滤后：{result['filtered_hits']}/{periods} = "
+                f"{result['filtered_hit_rate'] * 100:.2f}%｜"
+                f"损失原命中{result['lost_hits']}次\n",
+                f"过滤后号码：平均{result['average_filtered_count']:.2f}个/期｜"
+                f"范围{result['min_filtered_count']}~{result['max_filtered_count']}个｜"
+                f"平均减少{result['average_reduced_count']:.2f}个/期\n",
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"连续不中分布：{distribution_text}\n",
+                "-" * 105 + "\n",
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                date_value = str(df.iloc[row['index']]['date'])
+                original_status = "命中" if row['original_hit'] else "未中"
+                filtered_status = "命中" if row['filtered_hit'] else "未中"
+                log_lines.append(
+                    f"{period:03d} {date_value} 开奖={row['actual']}｜"
+                    f"原TOP20={original_status}｜过滤后={filtered_status}｜"
+                    f"连未中={row['filtered_miss_streak']}期｜"
+                    f"过滤后{row['filtered_count']}个（-{row['reduced_count']}）\n"
+                )
+                log_lines.append(f"  原TOP20：{row['top20_prediction']}\n")
+                log_lines.append(
+                    f"  生肖TOP{len(row['selected_zodiacs'])}：{row['selected_zodiacs']}｜"
+                    f"排除：{row['excluded_zodiacs']}\n"
+                )
+                log_lines.append(f"  过滤结果：{row['filtered_prediction']}\n")
+
+            next_result = result['next']
+            log_lines.append(
+                f"\n下一期原TOP20：{next_result['top20_prediction']}\n"
+                f"下一期生肖TOP{len(next_result['selected_zodiacs'])}："
+                f"{next_result['selected_zodiacs']}\n"
+                f"下一期排除生肖：{next_result['excluded_zodiacs']}\n"
+                f"下一期过滤后（{next_result['filtered_count']}个，"
+                f"减少{next_result['reduced_count']}个）："
+                f"{next_result['filtered_prediction']}\n"
+            )
+
+            summary = (
+                "TOP20 + 生肖TOP10排除\n\n"
+                f"最近{periods}期\n"
+                f"原TOP20成功率：{result['original_hit_rate'] * 100:.2f}%"
+                f"（{result['original_hits']}/{periods}）\n"
+                f"过滤后成功率：{result['filtered_hit_rate'] * 100:.2f}%"
+                f"（{result['filtered_hits']}/{periods}）\n"
+                f"损失原命中：{result['lost_hits']}次\n"
+                f"过滤后平均：{result['average_filtered_count']:.2f}个/期"
+                f"（范围{result['min_filtered_count']}~{result['max_filtered_count']}）\n"
+                f"平均减少：{result['average_reduced_count']:.2f}个/期\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：\n{distribution_text}\n\n"
+                f"下一期排除生肖：{next_result['excluded_zodiacs']}\n"
+                f"下一期过滤后（{next_result['filtered_count']}个）：\n"
+                f"{next_result['filtered_prediction']}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.top20_zodiac_filter_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(f"\nTOP20生肖排除回测失败：{error}\n{error_detail}")
+                self.top20_zodiac_filter_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
     def analyze_top15_dynamic_12_25(self):
         """Run the stateful TOP15 strategy with dynamic 12/25-draw windows."""
         import threading
         threading.Thread(target=self._run_top15_dynamic_12_25, daemon=True).start()
+
+    def analyze_top15_union_backtest(self):
+        """Run the union audit for dynamic and fixed-window TOP15 predictions."""
+        import threading
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top15_union_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top15_union_backtest,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def analyze_top15_top4_union(self):
+        """Run the dynamic TOP15 and distilled confidence TOP4 union audit."""
+        import threading
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top15_top4_union_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top15_top4_union,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_top15_top4_union(self, file_path):
+        """Display the 400-period dynamic TOP15 plus distilled TOP4 union."""
+        try:
+            from top15_dynamic_top4_union import run_top15_dynamic_top4_union
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_top15_dynamic_top4_union(
+                df['number'].astype(int).tolist(), test_periods=400
+            )
+            periods = result['test_periods']
+            distribution_text = "｜".join(
+                f"连续不中{length}期：{count}次"
+                for length, count in result['miss_streak_distribution'].items()
+            ) or "无连续不中"
+
+            log_lines = [
+                f"\n{'=' * 110}\n",
+                f"动态12/25 TOP15 + 蒸馏TOP4置信度数字并集｜最近{periods}期\n",
+                "规则：TOP4生肖按2026马年映射展开为16~17个数字，再与动态15保序去重合并。\n",
+                f"动态15：{result['dynamic_hits']}/{periods} = "
+                f"{result['dynamic_hit_rate'] * 100:.2f}%｜"
+                f"蒸馏TOP4：{result['top4_hits']}/{periods} = "
+                f"{result['top4_hit_rate'] * 100:.2f}%｜"
+                f"并集：{result['union_hits']}/{periods} = "
+                f"{result['union_hit_rate'] * 100:.2f}%\n",
+                f"TOP4独立补中：{result['top4_only_hits']}次｜"
+                f"并集平均{result['average_union_count']:.2f}个/期｜"
+                f"范围{result['min_union_count']}~{result['max_union_count']}个｜"
+                f"平均新增{result['average_added_count']:.2f}个/期\n",
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"连续不中分布：{distribution_text}\n",
+                "-" * 110 + "\n",
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                date_value = str(df.iloc[row['index']]['date'])
+                dynamic_status = "命中" if row['dynamic_hit'] else "未中"
+                top4_status = "命中" if row['top4_hit'] else "未中"
+                union_status = "命中" if row['union_hit'] else "未中"
+                log_lines.append(
+                    f"{period:03d} {date_value} 开奖={row['actual']}｜"
+                    f"动态15={dynamic_status}｜TOP4={top4_status}｜"
+                    f"并集={union_status}｜连未中={row['union_miss_streak']}期｜"
+                    f"并集{row['union_count']}个（+{row['added_count']}）\n"
+                )
+                log_lines.append(
+                    f"  动态15（{row['dynamic_window']}期窗口）："
+                    f"{row['dynamic_prediction']}\n"
+                )
+                log_lines.append(
+                    f"  蒸馏TOP4：{row['top4_zodiacs']}｜模式={row['top4_mode']}｜"
+                    f"置信度={row['top4_confidence']:.4f}\n"
+                    f"  TOP4数字：{row['top4_numbers']}\n"
+                )
+                log_lines.append(f"  并集：{row['union_prediction']}\n")
+
+            next_union = result['next_union_prediction']
+            log_lines.append(
+                f"\n下一期动态15（{result['next_dynamic_window']}期窗口）："
+                f"{result['next_dynamic_prediction']}\n"
+                f"下一期蒸馏TOP4：{result['next_top4_zodiacs']}｜"
+                f"模式={result['next_top4_mode']}｜"
+                f"置信度={result['next_top4_confidence']:.4f}\n"
+                f"下一期TOP4数字：{result['next_top4_numbers']}\n"
+                f"下一期并集（{len(next_union)}个，增加{result['next_added_count']}个）："
+                f"{next_union}\n"
+            )
+
+            summary = (
+                "动态15 + 蒸馏TOP4置信度数字并集\n\n"
+                f"最近{periods}期\n"
+                f"动态15成功率：{result['dynamic_hit_rate'] * 100:.2f}%"
+                f"（{result['dynamic_hits']}/{periods}）\n"
+                f"蒸馏TOP4成功率：{result['top4_hit_rate'] * 100:.2f}%"
+                f"（{result['top4_hits']}/{periods}）\n"
+                f"并集成功率：{result['union_hit_rate'] * 100:.2f}%"
+                f"（{result['union_hits']}/{periods}）\n"
+                f"TOP4独立补中：{result['top4_only_hits']}次\n"
+                f"并集平均：{result['average_union_count']:.2f}个/期"
+                f"（范围{result['min_union_count']}~{result['max_union_count']}）\n"
+                f"平均新增：{result['average_added_count']:.2f}个/期\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：\n{distribution_text}\n\n"
+                f"下一期蒸馏TOP4：{result['next_top4_zodiacs']}\n"
+                f"下一期并集（{len(next_union)}个）：\n{next_union}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.top15_top4_union_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(f"\n动态15+蒸馏TOP4并集回测失败：{error}\n{error_detail}")
+                self.top15_top4_union_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def _run_top15_union_backtest(self, file_path):
+        """Display the latest walk-forward TOP15 union audit."""
+        try:
+            from top15_union_backtest import run_top15_union_backtest
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_top15_union_backtest(
+                df['number'].astype(int).tolist(), test_periods=400
+            )
+            periods = result['test_periods']
+            miss_distribution = result['miss_streak_distribution']
+            miss_distribution_text = "｜".join(
+                f"连续不中{length}期：{count}次"
+                for length, count in miss_distribution.items()
+            ) or "无连续不中"
+            def format_miss_probabilities(probability_summary):
+                exact_text = "｜".join(
+                    f"恰好{length}期={probability * 100:.1f}%"
+                    for length, probability in probability_summary['exact_probabilities'].items()
+                ) or "无已结束连败"
+                at_least_text = "｜".join(
+                    f"至少{length}期={probability * 100:.1f}%"
+                    for length, probability in probability_summary['at_least_probabilities'].items()
+                    if length >= 2
+                ) or "无2期以上连败"
+                return exact_text, at_least_text
+
+            union_exact, union_at_least = format_miss_probabilities(
+                result['miss_streak_probabilities']
+            )
+            top10_filter = result['top10_filter']
+            top10_hard_exact, top10_hard_at_least = format_miss_probabilities(
+                top10_filter['hard_miss_streak_probabilities']
+            )
+            top10_protected_exact, top10_protected_at_least = format_miss_probabilities(
+                top10_filter['protected_miss_streak_probabilities']
+            )
+
+            log_lines = [
+                f"\n{'=' * 105}\n",
+                f"动态12/25 TOP15 + 最优智能TOP15 并集｜最近{periods}期滚动回测\n",
+                "口径：最优智能使用固定25期窗口；暂停期仍保留预测号码；每期预测后才更新模型状态。\n",
+                f"动态12/25：{result['dynamic_hits']}/{periods} = {result['dynamic_hit_rate'] * 100:.1f}%｜"
+                f"最优智能：{result['optimal_hits']}/{periods} = {result['optimal_hit_rate'] * 100:.1f}%｜"
+                f"并集：{result['union_hits']}/{periods} = {result['union_hit_rate'] * 100:.1f}%\n",
+                f"增加号码：总计{result['added_total']}个｜平均{result['added_average']:.2f}个/期｜"
+                f"最少{result['added_min']}个｜最多{result['added_max']}个\n",
+                "连续不中分布（按段统计，末尾未结束段按当前长度计入）：\n",
+                f"{miss_distribution_text}\n",
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"原并集连续不中概率（已结束"
+                f"{result['miss_streak_probabilities']['completed_streaks']}段）：\n",
+                f"  {union_exact}\n  {union_at_least}\n",
+                "  映射口径：全部历史号码统一按2026马年生肖映射重标，不按历史年份切换。\n",
+                "生肖TOP10排除对比（连续miss达到3期后自动扩展TOP11）：\n",
+                f"  生肖TOP10动态成功率：{top10_filter['zodiac_hits']}/{periods} = "
+                f"{top10_filter['zodiac_hit_rate'] * 100:.2f}%\n",
+                f"  全并集过滤：{top10_filter['hard_hits']}/{periods} = "
+                f"{top10_filter['hard_hit_rate'] * 100:.2f}%｜"
+                f"平均{top10_filter['hard_average_count']:.2f}个/期｜"
+                f"平均减少{top10_filter['hard_average_reduction']:.2f}个｜"
+                f"损失原命中{top10_filter['hard_lost_hits']}次｜"
+                f"最长连续不中{top10_filter['hard_max_miss_streak']}期｜"
+                f"当前{top10_filter['hard_current_miss_streak']}期\n",
+                f"    {top10_hard_exact}\n    {top10_hard_at_least}\n",
+                f"  保护动态15：{top10_filter['protected_hits']}/{periods} = "
+                f"{top10_filter['protected_hit_rate'] * 100:.2f}%｜"
+                f"平均{top10_filter['protected_average_count']:.2f}个/期｜"
+                f"平均减少{top10_filter['protected_average_reduction']:.2f}个｜"
+                f"损失原命中{top10_filter['protected_lost_hits']}次｜"
+                f"最长连续不中{top10_filter['protected_max_miss_streak']}期｜"
+                f"当前{top10_filter['protected_current_miss_streak']}期\n",
+                f"    {top10_protected_exact}\n    {top10_protected_at_least}\n",
+                "-" * 105 + "\n",
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                date_value = str(df.iloc[row['index']]['date'])
+                status = "命中" if row['hit'] else "未中"
+                log_lines.append(
+                    f"{period:03d} {date_value} 开奖={row['actual']} 动态窗口={row['dynamic_window']} "
+                    f"并集={row['union_count']}个 增加={row['added_count']}个 "
+                    f"结果={status} 连未中={row['miss_streak']}期\n"
+                )
+                log_lines.append(f"  动态15：{row['dynamic_prediction']}\n")
+                log_lines.append(f"  最优15：{row['optimal_prediction']}\n")
+                log_lines.append(f"  并集{row['union_count']}：{row['union_prediction']}\n")
+                top10_hard_status = "命中" if row['top10_hard_hit'] else "未中"
+                top10_protected_status = "命中" if row['top10_protected_hit'] else "未中"
+                log_lines.append(
+                    f"  生肖TOP{len(row['top10_selected_zodiacs'])}排除："
+                    f"{row['top10_excluded_zodiacs']}\n"
+                    f"  TOP10全过滤{row['top10_hard_count']}"
+                    f"（-{row['top10_hard_reduction']}，{top10_hard_status}）："
+                    f"{row['top10_hard_prediction']}\n"
+                    f"  TOP10保动态{row['top10_protected_count']}"
+                    f"（-{row['top10_protected_reduction']}，{top10_protected_status}）："
+                    f"{row['top10_protected_prediction']}\n"
+                )
+
+            next_union = result['next_union_prediction']
+            log_lines.append(
+                f"\n下一期动态15（{result['next_dynamic_window']}期窗口）：{result['next_dynamic_prediction']}\n"
+            )
+            log_lines.append(f"下一期最优15（25期窗口）：{result['next_optimal_prediction']}\n")
+            log_lines.append(
+                f"下一期并集（{len(next_union)}个，增加{result['next_added_count']}个）：{next_union}\n"
+            )
+            log_lines.append(
+                f"下一期TOP10排除生肖：{top10_filter['next_excluded_zodiacs']}\n"
+                f"下一期TOP10全过滤（{len(top10_filter['next_hard_prediction'])}个）："
+                f"{top10_filter['next_hard_prediction']}\n"
+                f"下一期TOP10保护动态15（{len(top10_filter['next_protected_prediction'])}个）："
+                f"{top10_filter['next_protected_prediction']}\n"
+            )
+
+            summary = (
+                "动态12/25 + 最优智能 TOP15 并集\n\n"
+                f"最近{periods}期\n"
+                f"动态命中率：{result['dynamic_hit_rate'] * 100:.1f}%"
+                f"（{result['dynamic_hits']}/{periods}）\n"
+                f"最优命中率：{result['optimal_hit_rate'] * 100:.1f}%"
+                f"（{result['optimal_hits']}/{periods}）\n"
+                f"并集成功率：{result['union_hit_rate'] * 100:.1f}%"
+                f"（{result['union_hits']}/{periods}）\n"
+                f"平均增加：{result['added_average']:.2f}个/期"
+                f"（范围{result['added_min']}~{result['added_max']}）\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：\n{miss_distribution_text}\n\n"
+                f"原并集连续不中概率（已结束"
+                f"{result['miss_streak_probabilities']['completed_streaks']}段）：\n"
+                f"{union_exact}\n{union_at_least}\n\n"
+                "生肖TOP10排除对比：\n"
+                f"生肖TOP10动态成功率：{top10_filter['zodiac_hit_rate'] * 100:.2f}%"
+                f"（{top10_filter['zodiac_hits']}/{periods}）\n"
+                f"全过滤：{top10_filter['hard_hit_rate'] * 100:.2f}%"
+                f"（{top10_filter['hard_hits']}/{periods}，平均"
+                f"{top10_filter['hard_average_count']:.2f}个，"
+                f"最长连续不中{top10_filter['hard_max_miss_streak']}期）\n"
+                f"保护动态15：{top10_filter['protected_hit_rate'] * 100:.2f}%"
+                f"（{top10_filter['protected_hits']}/{periods}，平均"
+                f"{top10_filter['protected_average_count']:.2f}个，"
+                f"最长连续不中{top10_filter['protected_max_miss_streak']}期）\n\n"
+                f"下一期并集（{len(next_union)}个，增加{result['next_added_count']}个）：\n{next_union}\n"
+                f"TOP10排除生肖：{top10_filter['next_excluded_zodiacs']}\n"
+                f"TOP10全过滤：{top10_filter['next_hard_prediction']}\n"
+                f"TOP10保护动态15：{top10_filter['next_protected_prediction']}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.top15_union_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(f"\nTOP15并集回测失败：{error}\n{error_detail}")
+                self.top15_union_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
 
     def _run_top15_dynamic_12_25(self):
         """Display the mini-program-compatible dynamic TOP15 walk-forward audit."""
@@ -8613,6 +9431,123 @@ class LuckyNumberGUI:
             self.log_output(traceback.format_exc())
     
     def analyze_zodiac_betting(self):
+        """Run the feedback-aware Zodiac TOP5 audit without betting dialogs."""
+        import threading
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.zodiac_betting_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_zodiac_top5_audit,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_zodiac_top5_audit(self, file_path):
+        """Display the latest 400 Zodiac TOP5 predictions and miss streaks."""
+        try:
+            from zodiac_top5_audit import run_zodiac_top5_audit
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_zodiac_top5_audit(
+                df['animal'].astype(str).tolist(), test_periods=400
+            )
+            periods = result['test_periods']
+            distribution_text = "｜".join(
+                f"连续不中{length}期：{count}次"
+                for length, count in result['miss_streak_distribution'].items()
+            ) or "无连续不中"
+
+            longest_lines = []
+            for sequence, streak in enumerate(result['longest_miss_streaks'], start=1):
+                start_date = str(df.iloc[streak['start_index']]['date'])
+                end_date = str(df.iloc[streak['end_index']]['date'])
+                actuals = df.iloc[
+                    streak['start_index']:streak['end_index'] + 1
+                ]['animal'].astype(str).tolist()
+                longest_lines.append(
+                    f"  第{sequence}段：{start_date} 至 {end_date}｜"
+                    f"连续{streak['length']}期｜实际生肖={actuals}\n"
+                )
+            longest_text = ''.join(longest_lines) or "  无连续不中区间\n"
+
+            chicken_stats = result['zodiac_stats'].get('鸡', {})
+            log_lines = [
+                f"\n{'=' * 105}\n",
+                f"生肖TOP5预测｜最近{periods}期逐期无前视回测\n",
+                "模型：v10简化智能选择器 + 连续入选未中反馈。\n",
+                "优化：实际遗漏达到30期、连续入选未中达到4期后分别逐步降权；不固定排除任何生肖。\n",
+                f"命中：{result['hits']}/{periods} = "
+                f"{result['hit_rate'] * 100:.2f}%｜"
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"连续不中分布：{distribution_text}\n",
+                f"鸡：入选{chicken_stats.get('selections', 0)}期｜"
+                f"入选率{chicken_stats.get('selection_rate', 0) * 100:.2f}%｜"
+                f"入选后命中{chicken_stats.get('selected_hits', 0)}次｜"
+                f"实际出现{chicken_stats.get('actual_count', 0)}次\n",
+                "最长连续不中区间：\n",
+                longest_text,
+                "-" * 105 + "\n",
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                date_value = str(df.iloc[row['index']]['date'])
+                status = "命中" if row['hit'] else "未中"
+                penalty_text = "、".join(
+                    f"{zodiac}-{penalty:.1f}"
+                    for zodiac, penalty in row['feedback_penalties'].items()
+                ) or "无"
+                log_lines.append(
+                    f"{period:03d} {date_value}｜实际={row['actual']}｜"
+                    f"预测={row['prediction']}｜{status}｜"
+                    f"连未中={row['miss_streak']}期｜"
+                    f"模型={row['selected_model']}｜反馈降权={penalty_text}\n"
+                )
+
+            next_penalty_text = "、".join(
+                f"{zodiac}-{penalty:.1f}"
+                for zodiac, penalty in result['next_feedback_penalties'].items()
+            ) or "无"
+            log_lines.append(
+                f"\n下一期生肖TOP5：{result['next_prediction']}\n"
+                f"选择模型：{result['next_selected_model']}\n"
+                f"反馈降权：{next_penalty_text}\n"
+            )
+
+            summary = (
+                "生肖TOP5预测\n\n"
+                f"最近{periods}期命中率：{result['hit_rate'] * 100:.2f}%"
+                f"（{result['hits']}/{periods}）\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：{distribution_text}\n\n"
+                "最长连续不中区间：\n"
+                f"{longest_text}\n"
+                f"鸡入选：{chicken_stats.get('selections', 0)}/{periods}期，"
+                f"命中{chicken_stats.get('selected_hits', 0)}次\n\n"
+                f"下一期TOP5：{result['next_prediction']}\n"
+                f"模型：{result['next_selected_model']}\n"
+                f"反馈降权：{next_penalty_text}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.zodiac_betting_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(f"\n生肖TOP5预测失败：{error}\n{error_detail}")
+                self.zodiac_betting_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def _legacy_analyze_zodiac_betting(self):
         """生肖投注策略分析 - TOP5生肖投注"""
         try:
             from datetime import datetime
@@ -10320,8 +11255,8 @@ class LuckyNumberGUI:
             import traceback
             self.log_output(f"\n{traceback.format_exc()}\n")
     
-    def analyze_distill_confidence(self):
-        """蒸馏TOP4 方案E: 置信度分层 (53.3%命中率)"""
+    def _legacy_analyze_distill_confidence(self):
+        """旧版蒸馏TOP4置信度分析。"""
         try:
             from datetime import datetime
             from distill_top4_confidence_predictor import DistillTop4ConfidencePredictor, NUM_TO_ZODIAC_2026, ZODIAC_NUMS_2026
@@ -10488,6 +11423,131 @@ class LuckyNumberGUI:
             self.log_output(f"\n❌ 错误: {str(e)}\n")
             import traceback
             self.log_output(f"\n{traceback.format_exc()}\n")
+
+    def analyze_distill_confidence(self):
+        """在线程中运行蒸馏TOP4最近400期无前视审计。"""
+        import threading
+
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.distill_confidence_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_distill_confidence_audit,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_distill_confidence_audit(self, file_path):
+        """输出蒸馏TOP4逐期详情、最长连续不中和下一期预测。"""
+        try:
+            from distill_top4_confidence_audit import (
+                run_distill_top4_confidence_audit,
+            )
+            from distill_top4_confidence_predictor import ZODIAC_NUMS_2026
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            result = run_distill_top4_confidence_audit(
+                df['number'].astype(int).tolist(), test_periods=400
+            )
+            periods = result['periods']
+            distribution_text = '｜'.join(
+                f"连续不中{length}期：{count}次"
+                for length, count in result['miss_streak_distribution'].items()
+            ) or '无连续不中'
+
+            longest_lines = []
+            for sequence, streak in enumerate(
+                result['longest_miss_streaks'], start=1
+            ):
+                start_index = streak['start_index']
+                end_index = streak['end_index']
+                actuals = [
+                    f"{row['actual_number']}({row['actual_zodiac']})"
+                    for row in result['rows']
+                    if start_index <= row['index'] <= end_index
+                ]
+                longest_lines.append(
+                    f"  第{sequence}段：{df.iloc[start_index]['date']} 至 "
+                    f"{df.iloc[end_index]['date']}｜连续{streak['length']}期｜"
+                    f"实际={actuals}\n"
+                )
+            longest_text = ''.join(longest_lines) or '  无连续不中区间\n'
+
+            segment_text = '｜'.join(
+                f"{segment['start_period']}-{segment['end_period']}期 "
+                f"{segment['hits']}/{segment['periods']}="
+                f"{segment['hit_rate']:.1f}%"
+                for segment in result['segments_50']
+            )
+            log_lines = [
+                f"\n{'=' * 115}\n",
+                f"蒸馏TOP4置信度 v2.0｜最近{periods}期逐期无前视回测\n",
+                "口径：历史号码统一按2026马年号码组映射生肖；每期只使用此前数据。\n",
+                "优化：Stage1间隔分最高按18期计算；仅恰好连不中3期使用反miss；始终固定TOP4。\n",
+                f"命中：{result['hits']}/{periods} = {result['hit_rate']:.2f}%｜"
+                f"最长连续不中：{result['max_miss_streak']}期｜"
+                f"当前连续不中：{result['current_miss_streak']}期\n",
+                f"每50期：{segment_text}\n",
+                f"连续不中分布：{distribution_text}\n",
+                "最长连续不中区间：\n",
+                longest_text,
+                '-' * 115 + '\n',
+            ]
+
+            for period, row in enumerate(result['rows'], start=1):
+                status = '命中' if row['hit'] else '未中'
+                log_lines.append(
+                    f"{period:03d} {df.iloc[row['index']]['date']}｜"
+                    f"实际={row['actual_number']}({row['actual_zodiac']})｜"
+                    f"预测={row['prediction']}｜{status}｜"
+                    f"连不中={row['miss_streak']}期｜"
+                    f"置信度={row['confidence']:.4f}｜模式={row['mode']}\n"
+                )
+
+            predicted_numbers = sorted(
+                number
+                for zodiac in result['next_prediction']
+                for number in ZODIAC_NUMS_2026[zodiac]
+            )
+            log_lines.append(
+                f"\n下一期TOP4：{result['next_prediction']}\n"
+                f"模式：{result['next_mode']}｜"
+                f"置信度：{result['next_confidence']:.4f}\n"
+                f"覆盖号码（{len(predicted_numbers)}个）：{predicted_numbers}\n"
+            )
+
+            summary = (
+                "蒸馏TOP4置信度 v2.0\n\n"
+                f"最近{periods}期命中率：{result['hit_rate']:.2f}%"
+                f"（{result['hits']}/{periods}）\n"
+                f"最长连续不中：{result['max_miss_streak']}期\n"
+                f"当前连续不中：{result['current_miss_streak']}期\n"
+                f"连续不中分布：{distribution_text}\n\n"
+                "最长连续不中区间：\n"
+                f"{longest_text}\n"
+                f"下一期TOP4：{result['next_prediction']}\n"
+                f"模式：{result['next_mode']}\n"
+                f"覆盖号码：{predicted_numbers}"
+            )
+
+            def publish():
+                self.log_output(''.join(log_lines))
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.distill_confidence_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            import traceback
+            error_detail = traceback.format_exc()
+
+            def publish_error(error=error, error_detail=error_detail):
+                self.log_output(
+                    f"\n蒸馏TOP4置信度审计失败：{error}\n{error_detail}"
+                )
+                self.distill_confidence_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
 
     def analyze_distill_antimiss(self):
         """蒸馏TOP4 方案C: 蒸馏+反miss (52.3%命中率)"""
@@ -11138,18 +12198,17 @@ class LuckyNumberGUI:
             self.log_output(f"• 命中奖励: 46元\n")
             self.log_output(f"• 净利润: 46 - 16 = 30元\n")
             self.log_output(f"• 未命中亏损: -16元\n")
-            self.log_output(f"• 主力模型: 重训练v2.0 (100期验证命中率50%) ⭐⭐⭐\n")
-            self.log_output(f"• 备份模型: 混合自适应v3.1 (应急切换) 🛡️\n")
-            self.log_output(f"• 应急机制: 连续10期命中率<30%自动切换备份模型\n")
-            self.log_output(f"• 100期验证: 命中率50%, ROI 43.8%, 净盈利+700元\n")
-            self.log_output(f"• 优势: 稳定可靠、低成本、高收益、可持续\n\n")
+            self.log_output(f"• 主力模型: 重训练v2.1超长遗漏保护\n")
+            self.log_output(f"• 保护规则: 任一生肖实际遗漏达到32期，候选充足时暂不进入TOP4\n")
+            self.log_output(f"• 模型切换: 关闭（400期验证备份切换弱于纯主模型）\n")
+            self.log_output(f"• 400期验证: 41.50%命中率，最长连续未中8期\n\n")
             
             self.log_output(f"{'='*80}\n")
             self.log_output("开始回测分析（使用推荐策略v2.0）\n")
             self.log_output(f"{'='*80}\n\n")
             
             # 创建推荐策略实例
-            strategy = RecommendedZodiacTop4Strategy(use_emergency_backup=True)
+            strategy = RecommendedZodiacTop4Strategy(use_emergency_backup=False)
             
             # 回测数据
             predictions_top4 = []
@@ -11292,35 +12351,16 @@ class LuckyNumberGUI:
                 primary_model = strategy.primary_model
                 primary_predictions = []
                 primary_hits = []
-                
                 recent_300_start_idx = len(hit_records) - 300
                 for i in range(300):
                     record_idx = recent_300_start_idx + i
                     period_idx = start_idx + record_idx
-                    
-                    # 使用主力模型预测
                     train_animals = [str(a).strip() for a in df['animal'].iloc[:period_idx].tolist()]
-                    
-                    # 根据模型类型调用不同的方法
-                    if hasattr(primary_model, 'predict_top4'):
-                        top4 = primary_model.predict_top4(train_animals)
-                    elif hasattr(primary_model, 'predict_from_history'):
-                        result = primary_model.predict_from_history(train_animals, top_n=4)
-                        top4 = result['top4']
-                    else:
-                        # 兜底：尝试使用默认预测方法
-                        result = primary_model.predict(train_animals)
-                        if isinstance(result, dict) and 'top4' in result:
-                            top4 = result['top4']
-                        else:
-                            top4 = result[:4] if isinstance(result, list) else []
-                    
+                    result = primary_model.predict_from_history(train_animals, top_n=4)
+                    top4 = result['top4']
                     primary_predictions.append(top4)
-                    
-                    # 判断主力模型命中
                     actual_animal = str(df.iloc[period_idx]['animal']).strip()
-                    hit = actual_animal in top4
-                    primary_hits.append(hit)
+                    primary_hits.append(actual_animal in top4)
                 
                 # 计算主力模型的统计数据
                 primary_hit_count = sum(primary_hits)
@@ -11603,19 +12643,19 @@ class LuckyNumberGUI:
             self.log_output(f"投注金额: {recommended_bet}元 (每个生肖4元)\n")
             self.log_output(f"如果命中: +{expected_profit}元 ✓\n")
             self.log_output(f"如果未中: -{recommended_bet}元 ✗\n")
-            self.log_output(f"期望命中率: ~50% (基于历史验证)\n\n")
+            self.log_output(f"最近400期验证命中率: 41.50%\n\n")
             
             self.log_output("💡 投注策略说明:\n")
             self.log_output("   • 固定1倍投注，风险可控\n")
-            self.log_output("   • 使用经过重训练的v2.0模型（最近200期优化）\n")
-            self.log_output("   • 自动监控模型性能，必要时切换到备份策略\n")
+            self.log_output("   • 使用重训练v2.1超长遗漏保护模型\n")
+            self.log_output("   • 关闭历史表现较差的备份切换\n")
             self.log_output("   • 建议长期使用，不追求短期暴利\n\n")
             
             # 在结果文本框显示汇总
             result_display = "┌────────────────────────────────────────────────────────────────────────┐\n"
             result_display += "│                   🎯 生肖TOP4投注策略分析报告 🎯                     │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
-            result_display += f"│  分析期数: {test_periods}期 (推荐策略 v2.0)                                │\n"
+            result_display += f"│  分析期数: {test_periods}期 (推荐策略 v2.1)                                │\n"
             result_display += f"│  实际命中率: {hit_rate*100:.2f}% ({hits}/{len(hit_records)})                              │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += "│  📊 投注表现（固定1倍）                                               │\n"
@@ -11628,7 +12668,11 @@ class LuckyNumberGUI:
             result_display += "│  🏆 模型信息                                                          │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += f"│  主力模型: {strategy.primary_model.__class__.__name__}                      │\n"
-            result_display += f"│  备份模型: {strategy.backup_model.__class__.__name__}                       │\n"
+            backup_name = (
+                strategy.backup_model.__class__.__name__
+                if strategy.backup_model else "已关闭"
+            )
+            result_display += f"│  备份模型: {backup_name:<56}│\n"
             result_display += f"│  模型切换次数: {len(strategy.switch_history)}次                                     │\n"
             result_display += "├────────────────────────────────────────────────────────────────────────┤\n"
             result_display += "│  🎯 下期投注建议（固定1倍）                                            │\n"
@@ -11638,7 +12682,7 @@ class LuckyNumberGUI:
             result_display += f"│  投注金额: {recommended_bet}元 (每个生肖4元)                                   │\n"
             result_display += f"│  如果命中: +{expected_profit}元 ✓                                            │\n"
             result_display += f"│  如果未中: -{recommended_bet}元 ✗                                            │\n"
-            result_display += f"│  期望命中率: ~50% (基于历史验证)                                        │\n"
+            result_display += f"│  最近400期验证: 41.50%                                                 │\n"
             result_display += "└────────────────────────────────────────────────────────────────────────┘\n"
             
             self.result_text.delete('1.0', tk.END)

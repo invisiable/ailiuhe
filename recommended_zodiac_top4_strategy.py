@@ -13,7 +13,7 @@ from hybrid_adaptive_predictor import HybridAdaptivePredictor
 class RecommendedZodiacTop4Strategy:
     """推荐的生肖TOP4投注策略"""
     
-    def __init__(self, use_emergency_backup=True):
+    def __init__(self, use_emergency_backup=False):
         """
         Args:
             use_emergency_backup: 是否启用应急备份（在主模型失效时切换到混合模型）
@@ -46,10 +46,11 @@ class RecommendedZodiacTop4Strategy:
         """预测TOP4生肖"""
         if self.current_model == 'primary':
             result = self.primary_predictor.predict_from_history(animals, top_n=4, debug=False)
-            predictor_name = '重训练v2.0'
+            predictor_name = '重训练v2.1-超长遗漏保护'
         else:
             result = self.backup_predictor.predict_from_history(animals, top_n=4, debug=False)
             predictor_name = result.get('predictor', '混合自适应v3.1')
+
         
         return {
             'top4': result['top4'],
@@ -130,7 +131,7 @@ class RecommendedZodiacTop4Strategy:
     def get_current_model_name(self):
         """获取当前模型的名称"""
         if self.current_model == 'primary':
-            return '重训练v2.0（主力模型）'
+            return '重训练v2.1（超长遗漏保护）'
         else:
             return '混合自适应v3.1（备份模型）'
     

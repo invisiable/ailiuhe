@@ -27,8 +27,9 @@ class DistillTop4ConfidencePredictor:
     """
 
     def __init__(self):
-        self.name = "蒸馏TOP4_置信度分层_固定TOP4连败切换"
+        self.name = "蒸馏TOP4_置信度分层_v2.0"
         self.confidence_threshold = 0.05
+        self.gap_score_cap = 18
         self.consecutive_miss = 0
         self.max_top_n = 4  # 硬限制：任何状态都不增加生肖/号码数量
 
@@ -79,7 +80,7 @@ class DistillTop4ConfidencePredictor:
                     last = j
                     break
             gap = (len(animals) - 1 - last) if last >= 0 else len(animals)
-            scores.append(gap / 12.0)
+            scores.append(min(gap, self.gap_score_cap) / 12.0)
         return np.array(scores)
 
     def _stage1_scores(self, animals):
@@ -99,25 +100,18 @@ class DistillTop4ConfidencePredictor:
 
     def _limit_top_n(self, top_n):
         """固定TOP4硬限制，禁止任何救援分支扩容。"""
-        return max(1, min(int(top_n), self.max_top_n))
+        return self.max_top_n
 
     def _rescue_predictor(self):
-        """按连败期数选择互补的固定TOP4模型。"""
-        if self.consecutive_miss == 3:
-            from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor
-            predictor = DistillTop4AntimissPredictor()
-            predictor.consecutive_miss = self.consecutive_miss
-            return predictor, '反miss'
-
-        from zodiac_top4_v3_predictor import ZodiacTop4V3Predictor
-        predictor = ZodiacTop4V3Predictor()
+        """连败3期时使用互补的固定TOP4反miss模型。"""
+        from distill_top4_antimiss_predictor import DistillTop4AntimissPredictor
+        predictor = DistillTop4AntimissPredictor()
         predictor.consecutive_miss = self.consecutive_miss
-        predictor.expand_threshold = 999  # 禁止原v3在连败时扩展为TOP5
-        return predictor, 'v3热号互补'
+        return predictor, '反miss'
 
     def predict(self, numbers, top_n=4):
         top_n = self._limit_top_n(top_n)
-        if self.consecutive_miss >= 2:
+        if self.consecutive_miss == 3:
             predictor, _ = self._rescue_predictor()
             return predictor.predict(numbers, top_n=top_n)[:top_n]
 
@@ -140,12 +134,9 @@ class DistillTop4ConfidencePredictor:
         excluded = [ZODIAC_CYCLE_2026[i] for i in range(12) if i not in set(top9_idx)]
         hot = self._hot_scores(animals, 30)
 
-        if self.consecutive_miss >= 2:
+        if self.consecutive_miss == 3:
             predictor, label = self._rescue_predictor()
-            if label == '反miss':
-                predictions, source_mode, source_scores, _ = predictor.predict_with_details(numbers, top_n=top_n)
-            else:
-                predictions, source_mode, source_scores = predictor.predict_with_details(numbers, top_n=top_n)
+            predictions, source_mode, source_scores, _ = predictor.predict_with_details(numbers, top_n=top_n)
             scores = {}
             for z in predictions:
                 zi = Z_IDX[z]
@@ -155,7 +146,7 @@ class DistillTop4ConfidencePredictor:
                     's2': float(source.get('s2', source.get('static', 0))),
                     'hot': float(source.get('hot', hot[zi])),
                 }
-            return predictions[:top_n], f'连败{self.consecutive_miss}期→{label}({source_mode})', scores, confidence, excluded
+            return predictions[:top_n], f'连败3期→{label}({source_mode})', scores, confidence, excluded
 
         if confidence >= self.confidence_threshold:
             s2 = self._s2_mk80(animals)

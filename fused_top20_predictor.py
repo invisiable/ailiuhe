@@ -26,8 +26,10 @@ DYNAMIC_SWITCH_MISSES = 3
 
 
 def _select_top_k(scores: np.ndarray, top_n: int = TOP_N) -> list[int]:
-    indexes = np.argpartition(scores, -top_n)[-top_n:]
-    indexes = sorted(indexes, key=lambda index: (-scores[index], index))
+    indexes = sorted(
+        range(len(scores)),
+        key=lambda index: (-float(scores[index]), index),
+    )[:top_n]
     return [int(index) + 1 for index in indexes]
 
 
@@ -112,6 +114,33 @@ def summarize_flags(flags: list[bool]) -> dict:
         "max_miss_streak": maximum,
         "ending_miss_streak": current,
     }
+
+
+def find_longest_miss_streaks(records: list[dict]) -> list[dict]:
+    """Return every miss range tied for the longest observed streak."""
+    ranges = []
+    start = None
+    for position, record in enumerate(records):
+        if not record["hit"] and start is None:
+            start = position
+        if record["hit"] and start is not None:
+            ranges.append((start, position - 1))
+            start = None
+    if start is not None:
+        ranges.append((start, len(records) - 1))
+
+    maximum = max((end - first + 1 for first, end in ranges), default=0)
+    return [
+        {
+            "start_index": records[first].get("index", first),
+            "end_index": records[end].get("index", end),
+            "start_date": records[first]["date"],
+            "end_date": records[end]["date"],
+            "length": end - first + 1,
+        }
+        for first, end in ranges
+        if end - first + 1 == maximum
+    ]
 
 
 def _candidate_metrics(rows: list[dict], weight: float, bonus: float) -> dict:
@@ -247,6 +276,7 @@ def build_fused_top20_report(
             [record["hit"] for record in records[-holdout_size:]]
         ),
         "overall": summarize_flags([record["hit"] for record in records]),
+        "longest_miss_streaks": find_longest_miss_streaks(records),
         "baselines": {
             "双目标TOP20": {
                 "development": summarize_flags(
@@ -333,6 +363,44 @@ def format_fused_top20_report(report: dict) -> str:
     return "\n".join(lines)
 
 
+def format_fused_top20_details(report: dict) -> str:
+    """Format all walk-forward rows and tied longest miss ranges."""
+    overall = report["overall"]
+    lines = [
+        "=" * 110,
+        f"双模型融合TOP20｜最近{overall['periods']}期预测详情",
+        "=" * 110,
+        (
+            f"命中：{overall['hits']}/{overall['periods']} = "
+            f"{overall['hit_rate']:.2f}%｜"
+            f"最长连续不中：{overall['max_miss_streak']}期｜"
+            f"当前连续不中：{overall['ending_miss_streak']}期"
+        ),
+        "最长连续不中区间：",
+    ]
+    longest = report.get("longest_miss_streaks", [])
+    if longest:
+        for sequence, streak in enumerate(longest, start=1):
+            lines.append(
+                f"  第{sequence}段：{streak['start_date']} 至 "
+                f"{streak['end_date']}｜连续{streak['length']}期"
+            )
+    else:
+        lines.append("  无连续不中区间")
+
+    lines.extend(["-" * 110, "逐期结果："])
+    for period, record in enumerate(report["records"], start=1):
+        status = "命中" if record["hit"] else "未中"
+        prediction = ",".join(str(number) for number in record["prediction"])
+        lines.append(
+            f"{period:03d} {record['date']}｜实际={record['actual']}｜"
+            f"预测={prediction}｜{status}｜重合={record['overlap']}｜"
+            f"双目标模式={record['dual_mode']}｜"
+            f"动态窗口={record['dynamic_window']}期"
+        )
+    return "\n".join(lines)
+
+
 def save_fused_top20_outputs(
     report: dict,
     output_dir: str | Path = "预测结果",
@@ -345,7 +413,10 @@ def save_fused_top20_outputs(
     csv_path = output_dir / f"双模型融合TOP20回测_{date}.csv"
 
     text_path.write_text(
-        format_fused_top20_report(report), encoding="utf-8-sig"
+        format_fused_top20_report(report)
+        + "\n\n"
+        + format_fused_top20_details(report),
+        encoding="utf-8-sig",
     )
     json_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"

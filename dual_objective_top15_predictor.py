@@ -145,11 +145,10 @@ class DualObjectiveTop15Predictor:
 
     @staticmethod
     def _select_top15(scores: np.ndarray) -> list[int]:
-        # 与开发回测保持同一选择方式；先固定集合，再按分数和号码排序展示。
-        selected_indexes = np.argpartition(scores, -15)[-15:]
         selected_indexes = sorted(
-            selected_indexes, key=lambda index: (-scores[index], index)
-        )
+            range(len(scores)),
+            key=lambda index: (-float(scores[index]), index),
+        )[:15]
         return [int(index) + 1 for index in selected_indexes]
 
     def predict_with_details(self, numbers) -> dict:

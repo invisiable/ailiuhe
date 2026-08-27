@@ -28,6 +28,7 @@ class ZodiacTop10Predictor:
 
     def __init__(self):
         self.name = "生肖TOP10"
+        self.zodiac_cycle = list(ZODIAC_CYCLE_2026)
         self.consecutive_miss = 0
 
         # 与TOP9相同权重
@@ -99,16 +100,33 @@ class ZodiacTop10Predictor:
                 self.weights['gap'] * gap +
                 self.weights['hot30'] * hot30)
 
+    def score_from_animals(self, animals):
+        """直接对真实生肖历史评分，不进行固定年份号码重标。"""
+        history = [str(animal).strip() for animal in animals]
+        invalid = sorted(set(history) - set(ZODIAC_CYCLE_2026))
+        if invalid:
+            raise ValueError(f"历史数据包含无效生肖：{invalid}")
+        scores = self._base_scores(history)
+        if self.consecutive_miss >= self.blend_threshold:
+            hot = self._hot_scores(history, self.hot_window)
+            scores = (
+                (1 - self.hot_blend_ratio) * scores
+                + self.hot_blend_ratio * hot
+            )
+        return scores
+
+    def predict_from_animals(self, animals, top_n=10):
+        """使用真实生肖历史预测，避免跨年历史被统一按2026重标。"""
+        scores = self.score_from_animals(animals)
+        count = int(top_n)
+        if self.consecutive_miss >= self.expand_threshold:
+            count += 1
+        sorted_idx = np.argsort(-scores, kind='stable')[:count]
+        return [ZODIAC_CYCLE_2026[index] for index in sorted_idx]
+
     def predict(self, numbers, top_n=10):
         animals = [NUM_TO_ZODIAC_2026[n] for n in numbers]
-        scores = self._base_scores(animals)
-        if self.consecutive_miss >= self.blend_threshold:
-            hot = self._hot_scores(animals, self.hot_window)
-            scores = (1 - self.hot_blend_ratio) * scores + self.hot_blend_ratio * hot
-        sorted_idx = np.argsort(-scores)
-        if self.consecutive_miss >= self.expand_threshold:
-            return [ZODIAC_CYCLE_2026[i] for i in sorted_idx[:top_n + 1]]
-        return [ZODIAC_CYCLE_2026[i] for i in sorted_idx[:top_n]]
+        return self.predict_from_animals(animals, top_n=top_n)
 
     def predict_with_details(self, numbers, top_n=10):
         animals = [NUM_TO_ZODIAC_2026[n] for n in numbers]

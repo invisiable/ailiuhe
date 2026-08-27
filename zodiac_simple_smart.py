@@ -10,6 +10,13 @@ from zodiac_super_predictor import ZodiacSuperPredictor
 
 class ZodiacSimpleSmart:
     """简化版智能预测器 - 以v5.0为主，最小化动态切换"""
+
+    SELECTION_MISS_THRESHOLD = 4
+    SELECTION_MISS_PENALTY = 2.0
+    MAX_SELECTION_MISS_PENALTY = 24.0
+    LONG_ABSENCE_THRESHOLD = 30
+    LONG_ABSENCE_PENALTY = 1.5
+    MAX_LONG_ABSENCE_PENALTY = 42.0
     
     def __init__(self):
         # 使用v5.0作为基础预测器
@@ -45,7 +52,9 @@ class ZodiacSimpleSmart:
         # 其他情况都用v5.0
         return 'normal'
     
-    def predict_from_history(self, animals, top_n=5, debug=False):
+    def predict_from_history(
+        self, animals, top_n=5, debug=False, selected_miss_streaks=None
+    ):
         """
         智能预测
         """
@@ -58,7 +67,9 @@ class ZodiacSimpleSmart:
                 'rotation': 0.12, 'absence_penalty': 0.08, 
                 'diversity': 0.04, 'similarity': 0.03
             }
-            result = self._predict_with_weights(animals, weights, top_n)
+            result = self._predict_with_weights(
+                animals, weights, top_n, selected_miss_streaks
+            )
             selected_model = 'v5.0平衡模型'
         elif scenario == 'extreme_hot':
             # 极端热门场景，使用热门感知权重
@@ -67,7 +78,9 @@ class ZodiacSimpleSmart:
                 'rotation': 0.15, 'absence_penalty': 0.05, 
                 'hot_momentum': 0.22, 'diversity': 0.05, 'similarity': 0.03
             }
-            result = self._predict_with_weights(animals, weights, top_n)
+            result = self._predict_with_weights(
+                animals, weights, top_n, selected_miss_streaks
+            )
             selected_model = '热门感知模型'
         else:  # extreme_cold
             # 极端冷门场景，使用极致冷门权重
@@ -76,7 +89,9 @@ class ZodiacSimpleSmart:
                 'rotation': 0.08, 'absence_penalty': 0.04, 
                 'diversity': 0.02, 'similarity': 0.01
             }
-            result = self._predict_with_weights(animals, weights, top_n)
+            result = self._predict_with_weights(
+                animals, weights, top_n, selected_miss_streaks
+            )
             selected_model = '极致冷门模型'
         
         if debug:
@@ -112,7 +127,9 @@ class ZodiacSimpleSmart:
             scores[zodiac] = score
         return scores
     
-    def _predict_with_weights(self, animals, weights, top_n):
+    def _predict_with_weights(
+        self, animals, weights, top_n, selected_miss_streaks=None
+    ):
         """使用指定权重进行预测"""
         # 收集各策略评分
         strategies_scores = {
@@ -136,13 +153,44 @@ class ZodiacSimpleSmart:
                 weight = weights.get(strategy_name, 0)
                 score += strategy_scores.get(zodiac, 0) * weight
             final_scores[zodiac] = score
+
+        long_absence_penalties = {zodiac: 0.0 for zodiac in self.zodiacs}
+        reversed_animals = list(reversed(animals))
+        for zodiac in self.zodiacs:
+            try:
+                absence = reversed_animals.index(zodiac)
+            except ValueError:
+                absence = len(animals)
+            excess = max(0, absence - self.LONG_ABSENCE_THRESHOLD + 1)
+            penalty = min(
+                self.MAX_LONG_ABSENCE_PENALTY,
+                excess * self.LONG_ABSENCE_PENALTY,
+            )
+            long_absence_penalties[zodiac] = penalty
+            final_scores[zodiac] -= penalty
+
+        feedback_penalties = {zodiac: 0.0 for zodiac in self.zodiacs}
+        if selected_miss_streaks:
+            for zodiac in self.zodiacs:
+                miss_streak = int(selected_miss_streaks.get(zodiac, 0))
+                excess = max(
+                    0, miss_streak - self.SELECTION_MISS_THRESHOLD + 1
+                )
+                penalty = min(
+                    self.MAX_SELECTION_MISS_PENALTY,
+                    excess * self.SELECTION_MISS_PENALTY,
+                )
+                feedback_penalties[zodiac] = penalty
+                final_scores[zodiac] -= penalty
         
         sorted_zodiacs = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
         top_zodiacs = [z for z, s in sorted_zodiacs[:top_n]]
         
         return {
             'top5': top_zodiacs,
-            'all_scores': sorted_zodiacs
+            'all_scores': sorted_zodiacs,
+            'feedback_penalties': feedback_penalties,
+            'long_absence_penalties': long_absence_penalties,
         }
     
     def predict(self, csv_file='data/lucky_numbers.csv', top_n=5):

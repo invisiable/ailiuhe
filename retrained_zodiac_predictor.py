@@ -11,6 +11,8 @@ from zodiac_super_predictor import ZodiacSuperPredictor
 
 class RetrainedZodiacPredictor:
     """重训练的生肖预测器 - v2.0"""
+
+    LONG_ABSENCE_EXCLUSION = 32
     
     def __init__(self):
         self.base_predictor = ZodiacSuperPredictor()
@@ -220,9 +222,27 @@ class RetrainedZodiacPredictor:
                 weight = self.weights[strategy_name]
                 score += strategy_scores.get(zodiac, 0) * weight
             final_scores[zodiac] = score
-        
+
         # 排序
         sorted_zodiacs = sorted(final_scores.items(), key=lambda x: x[1], reverse=True)
+        reversed_animals = list(reversed(animals))
+        long_absence_excluded = []
+        for zodiac in self.zodiacs:
+            try:
+                absence = reversed_animals.index(zodiac)
+            except ValueError:
+                absence = len(animals)
+            if absence >= self.LONG_ABSENCE_EXCLUSION:
+                long_absence_excluded.append(zodiac)
+
+        eligible = [
+            item for item in sorted_zodiacs
+            if item[0] not in long_absence_excluded
+        ]
+        guarded_ranking = eligible + [
+            item for item in sorted_zodiacs
+            if item[0] in long_absence_excluded
+        ]
         
         if debug:
             print(f"\n【各生肖综合评分】")
@@ -230,12 +250,13 @@ class RetrainedZodiacPredictor:
                 print(f"  {zodiac}: {score:.2f}")
         
         return {
-            'top3': [z for z, s in sorted_zodiacs[:3]],
-            'top4': [z for z, s in sorted_zodiacs[:4]],
-            'top5': [z for z, s in sorted_zodiacs[:5]],
-            'top6': [z for z, s in sorted_zodiacs[:6]],
+            'top3': [z for z, s in guarded_ranking[:3]],
+            'top4': [z for z, s in guarded_ranking[:4]],
+            'top5': [z for z, s in guarded_ranking[:5]],
+            'top6': [z for z, s in guarded_ranking[:6]],
             'all_scores': sorted_zodiacs,
-            'selected_model': '重训练v2.0-热门感知策略'
+            'long_absence_excluded': long_absence_excluded,
+            'selected_model': '重训练v2.1-超长遗漏保护'
         }
     
     def predict(self, csv_file='data/lucky_numbers.csv', top_n=4):
