@@ -570,6 +570,17 @@ class LuckyNumberGUI:
         self.top5_top10_balanced19_button.grid(
             row=5, column=5, padx=5, pady=5
         )
+
+        self.top5_top10_balanced15_button = ttk.Button(
+            pred_frame,
+            text="TOP5+TOP10精简15",
+            command=self.analyze_top5_top10_balanced15,
+            state='normal',
+            width=20,
+        )
+        self.top5_top10_balanced15_button.grid(
+            row=5, column=6, padx=5, pady=5
+        )
         
         # 蒸馏TOP4置信度分层按钮
         self.distill_confidence_button = ttk.Button(
@@ -791,7 +802,7 @@ class LuckyNumberGUI:
                 "zodiac_betting_button", "zodiac_top4_betting_button",
                 "ensemble_select_best_button", "zodiac_top4_v3_button",
                 "zodiac_top9_button", "zodiac_top10_button",
-                "top5_top10_balanced19_button",
+                "top5_top10_balanced19_button", "top5_top10_balanced15_button",
                 "distill_confidence_button", "distill_antimiss_button",
             ]),
             ("15-18个数字", [
@@ -913,19 +924,63 @@ class LuckyNumberGUI:
         ).start()
 
     def _run_top5_top10_balanced19(self, file_path):
-        try:
-            from top5_top10_balanced19 import (
-                run_top5_top10_balanced19_audit,
-            )
+        self._run_top5_top10_balanced_audit(file_path, target_count=18)
 
+    def analyze_top5_top10_balanced15(self):
+        """运行TOP5候选池与TOP10共识评分的精简15号审计。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top5_top10_balanced15_button.configure(state='disabled')
+        threading.Thread(
+            target=self._run_top5_top10_balanced15,
+            args=(file_path,),
+            daemon=True,
+        ).start()
+
+    def _run_top5_top10_balanced15(self, file_path):
+        self._run_top5_top10_balanced_audit(file_path, target_count=15)
+
+    def _run_top5_top10_balanced_audit(self, file_path, target_count):
+        scheme_name = f'TOP5+TOP10精简{target_count}'
+        button = (
+            self.top5_top10_balanced15_button
+            if target_count == 15
+            else self.top5_top10_balanced19_button
+        )
+        try:
             df = pd.read_csv(file_path, encoding='utf-8-sig')
-            report = run_top5_top10_balanced19_audit(
-                df,
-                test_periods=400,
-                target_count=18,
-            )
+            if target_count == 15:
+                from top5_top10_balanced15 import (
+                    run_top5_top10_balanced15_audit,
+                )
+
+                report = run_top5_top10_balanced15_audit(df, test_periods=400)
+            else:
+                from top5_top10_balanced19 import (
+                    run_top5_top10_balanced19_audit,
+                )
+
+                report = run_top5_top10_balanced19_audit(
+                    df,
+                    test_periods=400,
+                    target_count=target_count,
+                )
+            periods = report['periods']
             reduced = report['reduced']
             full = report['full_top5']
+            distribution_lines = [
+                '连续不中分布（按独立连续段计次，含末尾未结束段）：\n',
+            ]
+            for label, statistics in ((f'精简{target_count}', reduced), ('完整TOP5', full)):
+                distribution_lines.append(f'{label}：\n')
+                distribution = statistics['miss_streak_distribution']
+                if distribution:
+                    for length in range(1, max(distribution) + 1):
+                        distribution_lines.append(
+                            f'连续不中{length}期：{distribution.get(length, 0)}次\n'
+                        )
+                else:
+                    distribution_lines.append('无连续不中\n')
+            distribution_text = ''.join(distribution_lines)
             longest_lines = []
             for sequence, streak in enumerate(
                 reduced['longest_miss_streaks'], start=1
@@ -938,22 +993,23 @@ class LuckyNumberGUI:
                 )
             longest_text = ''.join(longest_lines) or '  无连续不中区间\n'
             segments = '｜'.join(
-                f"第{index + 1}个100期 {hits}/100"
+                f"第{index + 1}段 {hits}/{min(100, periods - index * 100)}"
                 for index, hits in enumerate(reduced['segments_100'])
             )
             log_lines = [
                 f"\n{'=' * 120}\n",
-                "TOP5+TOP10精简18｜最近400期逐期无前视回测\n",
+                f"{scheme_name}｜最近{periods}期逐期无前视回测\n",
                 "规则：TOP5限定候选生肖池；数字评分50% + TOP10生肖共识50%；"
-                "按目标日期切换蛇年/马年号码映射；固定18号。\n",
-                f"精简18：{reduced['hits']}/400 = "
+                f"按目标日期切换蛇年/马年号码映射；固定{target_count}号。\n",
+                f"精简{target_count}：{reduced['hits']}/{periods} = "
                 f"{reduced['hit_rate'] * 100:.2f}%｜"
                 f"最长连续不中{reduced['max_miss_streak']}期｜"
                 f"平均{reduced['average_count']:.2f}号\n",
-                f"完整TOP5：{full['hits']}/400 = "
+                f"完整TOP5：{full['hits']}/{periods} = "
                 f"{full['hit_rate'] * 100:.2f}%｜"
                 f"最长连续不中{full['max_miss_streak']}期｜"
                 f"平均{full['average_count']:.2f}号\n",
+                distribution_text,
                 f"每100期：{segments}\n",
                 "最长连续不中区间：\n",
                 longest_text,
@@ -964,35 +1020,48 @@ class LuckyNumberGUI:
                 log_lines.append(
                     f"{period:03d} {row['date']}｜"
                     f"实际={row['actual_number']}({row['actual_animal']})｜"
-                    f"预测18={row['prediction']}｜{status}｜"
+                    f"预测{target_count}={row['prediction']}｜{status}｜"
                     f"TOP5={row['top5']}｜TOP10={row['top10']}｜"
                     f"完整池={row['full_top5_count']}号\n"
                 )
 
             summary = (
-                "TOP5+TOP10精简18\n\n"
-                f"精简18：{reduced['hits']}/400 = "
+                f"{scheme_name}\n\n"
+                f"精简{target_count}：{reduced['hits']}/{periods} = "
                 f"{reduced['hit_rate'] * 100:.2f}%\n"
                 f"最长连续不中：{reduced['max_miss_streak']}期\n"
                 f"平均覆盖：{reduced['average_count']:.2f}号\n\n"
-                f"完整TOP5：{full['hits']}/400 = "
+                f"完整TOP5：{full['hits']}/{periods} = "
                 f"{full['hit_rate'] * 100:.2f}%\n"
                 f"最长连续不中：{full['max_miss_streak']}期\n"
                 f"平均覆盖：{full['average_count']:.2f}号\n\n"
+                f"{distribution_text}\n"
                 f"每100期：{segments}\n"
                 f"最长区间：\n{longest_text}\n"
                 f"下一期日期：{report['next_target_date']}\n"
-                f"下一期18号：{report['next_prediction']}\n"
+                f"下一期{target_count}号：{report['next_prediction']}\n"
                 f"TOP5：{report['next_top5']}\n"
                 f"TOP10：{report['next_top10']}"
             )
+
+            if target_count == 15:
+                from top5_top10_pause4_betting import (
+                    format_pause4_betting_report,
+                    simulate_pause4_betting,
+                )
+
+                betting = simulate_pause4_betting(
+                    report['rows'], test_periods=min(300, periods)
+                )
+                summary += '\n\n' + format_pause4_betting_report(betting, include_details=False)
+                log_lines.extend(['\n', format_pause4_betting_report(betting)])
 
             def publish():
                 self.log_output(''.join(log_lines))
                 self.result_text.delete('1.0', tk.END)
                 self.result_text.insert('1.0', summary)
                 self.notebook.select(self.result_frame)
-                self.top5_top10_balanced19_button.configure(state='normal')
+                button.configure(state='normal')
 
             self.root.after(0, publish)
         except Exception as error:
@@ -1001,9 +1070,9 @@ class LuckyNumberGUI:
 
             def publish_error(error=error, error_detail=error_detail):
                 self.log_output(
-                    f"\nTOP5+TOP10精简18运行失败：{error}\n{error_detail}"
+                    f"\n{scheme_name}运行失败：{error}\n{error_detail}"
                 )
-                self.top5_top10_balanced19_button.configure(state='normal')
+                button.configure(state='normal')
 
             self.root.after(0, publish_error)
 
