@@ -553,6 +553,17 @@ class LuckyNumberGUI:
         )
         self.zodiac_top9_button.grid(row=3, column=5, padx=5, pady=5)
 
+        self.zodiac_top6_button = ttk.Button(
+            pred_frame, text="生肖TOP6预测", command=self.analyze_zodiac_top6,
+            state='normal', width=20,
+        )
+        self.zodiac_top6_button.grid(row=3, column=7, padx=5, pady=5)
+
+        self.top6_fixed20_button = ttk.Button(
+            pred_frame, text="TOP6精简20", command=self.analyze_top6_fixed20,
+            state='normal', width=20,
+        )
+
         # 生肖TOP10按钮
         self.zodiac_top10_button = ttk.Button(
             pred_frame, text="🎯 生肖TOP10", command=self.analyze_zodiac_top10,
@@ -581,6 +592,13 @@ class LuckyNumberGUI:
         self.top5_top10_balanced15_button.grid(
             row=5, column=6, padx=5, pady=5
         )
+
+        self.top6_top10_balanced16_button = ttk.Button(
+            pred_frame, text="TOP6+TOP10精简16",
+            command=self.analyze_top6_top10_balanced16,
+            state='normal', width=20,
+        )
+        self.top6_top10_balanced16_button.grid(row=5, column=7, padx=5, pady=5)
         
         # 蒸馏TOP4置信度分层按钮
         self.distill_confidence_button = ttk.Button(
@@ -786,6 +804,24 @@ class LuckyNumberGUI:
         )
         self.risk_first_top18_button.grid(row=9, column=0, padx=5, pady=5)
 
+        self.inverse_exclusion_top15_button = ttk.Button(
+            pred_frame, text="15反向排除预测",
+            command=self.analyze_inverse_exclusion_top15,
+            state='normal', width=22,
+        )
+        self.inverse_exclusion_top15_button.grid(
+            row=9, column=1, padx=5, pady=5,
+        )
+
+        self.zodiac_top5_compare_button = ttk.Button(
+            pred_frame, text="生肖TOP5优化对比",
+            command=self.analyze_zodiac_top5_comparison,
+            state='normal', width=22,
+        )
+        self.zodiac_top5_compare_button.grid(
+            row=9, column=2, padx=5, pady=5,
+        )
+
         # 旧界面按多列定位按钮；在所有入口创建完成后统一重排为单列。
         self._arrange_action_buttons(pred_frame)
 
@@ -799,13 +835,17 @@ class LuckyNumberGUI:
                 "daily_best_button",
             ]),
             ("生肖策略", [
-                "zodiac_betting_button", "zodiac_top4_betting_button",
+                "zodiac_betting_button", "zodiac_top5_compare_button",
+                "zodiac_top6_button", "top6_fixed20_button",
+                "zodiac_top4_betting_button",
                 "ensemble_select_best_button", "zodiac_top4_v3_button",
                 "zodiac_top9_button", "zodiac_top10_button",
                 "top5_top10_balanced19_button", "top5_top10_balanced15_button",
+                "top6_top10_balanced16_button",
                 "distill_confidence_button", "distill_antimiss_button",
             ]),
             ("15-18个数字", [
+                "inverse_exclusion_top15_button",
                 "dual_top15_button",
                 "independent_adaptive_top15_button",
                 "risk_first_top18_button",
@@ -912,6 +952,232 @@ class LuckyNumberGUI:
             args=(file_path,),
             daemon=True,
         ).start()
+
+    def analyze_inverse_exclusion_top15(self):
+        """后台运行TOP9正向、尾数反向、正向精简15号的400期预测。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.inverse_exclusion_top15_button.configure(state='disabled')
+        self.log_output('\n15反向排除预测：正在计算最近400期，请稍候…\n')
+        try:
+            threading.Thread(
+                target=self._run_inverse_exclusion_top15,
+                args=(file_path,),
+                daemon=True,
+            ).start()
+        except Exception as error:
+            self.inverse_exclusion_top15_button.configure(state='normal')
+            self.log_output(f'15反向排除预测启动失败：{error}\n')
+            messagebox.showerror('15反向排除预测启动失败', str(error))
+
+    def analyze_zodiac_top6(self):
+        """在后台生成固定6肖预测及逐期回测。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.zodiac_top6_button.configure(state='disabled')
+        self.log_output('\n生肖TOP6预测：正在计算固定6肖及最近400期回测…\n')
+        try:
+            threading.Thread(
+                target=self._run_zodiac_top6,
+                args=(file_path,),
+                daemon=True,
+            ).start()
+        except Exception as error:
+            self.zodiac_top6_button.configure(state='normal')
+            self.log_output(f'生肖TOP6预测启动失败：{error}\n')
+            messagebox.showerror('生肖TOP6预测启动失败', str(error))
+
+    def _run_zodiac_top6(self, file_path):
+        try:
+            from zodiac_top6_scheme import build_zodiac_top6_report, format_zodiac_top6_report
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = build_zodiac_top6_report(df, test_periods=400)
+            summary = format_zodiac_top6_report(report)
+            details = format_zodiac_top6_report(report, include_details=True)
+
+            def publish():
+                try:
+                    self.result_text.delete('1.0', tk.END)
+                    self.result_text.insert('1.0', summary)
+                    self.notebook.select(self.result_frame)
+                    self.log_output('\n' + details + '\n')
+                finally:
+                    self.zodiac_top6_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                try:
+                    self.log_output(f'\n生肖TOP6预测运行失败：{error}\n')
+                    messagebox.showerror('生肖TOP6预测运行失败', str(error))
+                finally:
+                    self.zodiac_top6_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def analyze_top6_fixed20(self):
+        """Run the locked TOP6 number reduction in the background."""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top6_fixed20_button.configure(state='disabled')
+        self.log_output('\nTOP6精简20正在计算，请稍候…\n')
+        try:
+            threading.Thread(target=self._run_top6_fixed20, args=(file_path,), daemon=True).start()
+        except Exception as error:
+            self.top6_fixed20_button.configure(state='normal')
+            self.log_output(f'\nTOP6精简20启动失败：{error}\n')
+            messagebox.showerror('TOP6精简20启动失败', str(error))
+
+    def _run_top6_fixed20(self, file_path):
+        def publish(summary=None, error=None):
+            try:
+                if error is not None:
+                    self.log_output(f'\nTOP6精简20运行失败：{error}\n')
+                    messagebox.showerror('TOP6精简20运行失败', str(error))
+                    return
+                self.result_text.delete('1.0', tk.END)
+                self.result_text.insert('1.0', summary)
+                self.notebook.select(self.result_frame)
+                self.log_output('\n' + summary + '\n')
+            finally:
+                self.top6_fixed20_button.configure(state='normal')
+
+        try:
+            from top6_fixed20 import build_top6_fixed20_report, format_top6_fixed20_report
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            summary = format_top6_fixed20_report(build_top6_fixed20_report(df))
+        except Exception as error:
+            self.root.after(0, publish, None, str(error))
+        else:
+            self.root.after(0, publish, summary)
+
+    def analyze_zodiac_top5_comparison(self):
+        """比较固定5生肖的原模型与滚动选参方案，不替换原模型。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.zodiac_top5_compare_button.configure(state='disabled')
+        self.log_output('\n生肖TOP5优化对比：正在计算最近400期，请稍候…\n')
+        try:
+            threading.Thread(
+                target=self._run_zodiac_top5_comparison,
+                args=(file_path,),
+                daemon=True,
+            ).start()
+        except Exception as error:
+            self.zodiac_top5_compare_button.configure(state='normal')
+            self.log_output(f'生肖TOP5优化对比启动失败：{error}\n')
+            messagebox.showerror('生肖TOP5优化对比启动失败', str(error))
+
+    def _run_zodiac_top5_comparison(self, file_path):
+        try:
+            from zodiac_top5_optimization import (
+                build_zodiac_top5_comparison,
+                format_zodiac_top5_comparison,
+            )
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = build_zodiac_top5_comparison(df, test_periods=400)
+            summary = format_zodiac_top5_comparison(report, include_details=False)
+            details = format_zodiac_top5_comparison(report, include_details=True)
+
+            def publish():
+                try:
+                    self.result_text.delete('1.0', tk.END)
+                    self.result_text.insert('1.0', summary)
+                    self.notebook.select(self.result_frame)
+                    self.log_output('\n' + details + '\n')
+                finally:
+                    self.zodiac_top5_compare_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                try:
+                    self.log_output(f'\n生肖TOP5优化对比运行失败：{error}\n')
+                    messagebox.showerror('生肖TOP5优化对比运行失败', str(error))
+                finally:
+                    self.zodiac_top5_compare_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def _run_inverse_exclusion_top15(self, file_path):
+        try:
+            from inverse_exclusion_top15 import (
+                format_inverse_exclusion_top15_report,
+                run_inverse_exclusion_top15_audit,
+            )
+
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = run_inverse_exclusion_top15_audit(
+                df,
+                test_periods=400,
+                tail_trend_runner=self._backtest_tail_hold_strategy,
+            )
+            report_text = format_inverse_exclusion_top15_report(
+                report, include_details=True,
+            )
+
+            def publish():
+                try:
+                    self.result_text.delete('1.0', tk.END)
+                    self.result_text.insert('1.0', report_text)
+                    self.notebook.select(self.result_frame)
+                    self.log_output('\n' + report_text + '\n')
+                finally:
+                    self.inverse_exclusion_top15_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                try:
+                    self.log_output(f'\n15反向排除预测运行失败：{error}\n')
+                    messagebox.showerror('15反向排除预测运行失败', str(error))
+                finally:
+                    self.inverse_exclusion_top15_button.configure(state='normal')
+
+            self.root.after(0, publish_error)
+
+    def analyze_top6_top10_balanced16(self):
+        """后台计算TOP6号码池内的固定16号共识方案。"""
+        file_path = self.file_path_var.get() or 'data/lucky_numbers.csv'
+        self.top6_top10_balanced16_button.configure(state='disabled')
+        self.log_output('\nTOP6+TOP10精简16：正在计算下一期方案和最近400期回测…\n')
+        try:
+            threading.Thread(
+                target=self._run_top6_top10_balanced16,
+                args=(file_path,), daemon=True,
+            ).start()
+        except Exception as error:
+            self.top6_top10_balanced16_button.configure(state='normal')
+            self.log_output(f'TOP6+TOP10精简16启动失败：{error}\n')
+            messagebox.showerror('TOP6+TOP10精简16启动失败', str(error))
+
+    def _run_top6_top10_balanced16(self, file_path):
+        try:
+            from top6_top10_balanced16 import (
+                run_top6_top10_balanced16_audit, format_top6_top10_balanced16_report,
+            )
+            df = pd.read_csv(file_path, encoding='utf-8-sig')
+            report = run_top6_top10_balanced16_audit(df, test_periods=400)
+            summary = format_top6_top10_balanced16_report(report)
+            details = format_top6_top10_balanced16_report(report, include_details=True)
+
+            def publish():
+                try:
+                    self.result_text.delete('1.0', tk.END)
+                    self.result_text.insert('1.0', summary)
+                    self.notebook.select(self.result_frame)
+                    self.log_output('\n' + details + '\n')
+                finally:
+                    self.top6_top10_balanced16_button.configure(state='normal')
+
+            self.root.after(0, publish)
+        except Exception as error:
+            def publish_error(error=error):
+                try:
+                    self.log_output(f'\nTOP6+TOP10精简16运行失败：{error}\n')
+                    messagebox.showerror('TOP6+TOP10精简16运行失败', str(error))
+                finally:
+                    self.top6_top10_balanced16_button.configure(state='normal')
+            self.root.after(0, publish_error)
 
     def analyze_top5_top10_balanced19(self):
         """运行TOP5候选池与TOP10共识评分的精简18号审计。"""
